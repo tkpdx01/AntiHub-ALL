@@ -16,11 +16,13 @@ from app.core.config import get_settings
 
 # ==================== 密码哈希配置 ====================
 
-# 配置 bcrypt 哈希算法,rounds=12
+# 配置密码哈希算法
+# 使用 bcrypt_sha256 避免 bcrypt 72 bytes 密码长度限制；同时保留 bcrypt 以兼容历史哈希
 pwd_context = CryptContext(
-    schemes=["bcrypt"],
+    schemes=["bcrypt_sha256", "bcrypt"],
     deprecated="auto",
-    bcrypt__rounds=12
+    bcrypt_sha256__rounds=12,
+    bcrypt__rounds=12,
 )
 
 
