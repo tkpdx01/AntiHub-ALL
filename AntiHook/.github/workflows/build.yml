@@ -9,8 +9,8 @@ on:
     branches: [ main, master ]
 
 env:
-  KIRO_SERVER_URL: ${{ secrets.KIRO_SERVER_URL || 'http://localhost:8045' }}
-  BACKEND_URL: ${{ secrets.BACKEND_URL || 'http://localhost:8008' }}
+  KIRO_SERVER_URL: ${{ secrets.KIRO_SERVER_URL || '' }}
+  BACKEND_URL: ${{ secrets.BACKEND_URL || '' }}
 
 jobs:
   build:
@@ -59,8 +59,8 @@ jobs:
       shell: bash
       run: |
         LDFLAGS="-s -w"
-        LDFLAGS="$LDFLAGS -X 'main.DefaultServerURL=${{ secrets.KIRO_SERVER_URL || 'http://localhost:8045' }}'"
-        LDFLAGS="$LDFLAGS -X 'main.DefaultBackendURL=${{ secrets.BACKEND_URL || 'http://localhost:8008' }}'"
+        LDFLAGS="$LDFLAGS -X 'main.DefaultServerURL=${{ secrets.KIRO_SERVER_URL || '' }}'"
+        LDFLAGS="$LDFLAGS -X 'main.DefaultBackendURL=${{ secrets.BACKEND_URL || '' }}'"
         LDFLAGS="$LDFLAGS -X 'main.BuildVersion=${{ steps.version.outputs.VERSION }}'"
         LDFLAGS="$LDFLAGS -X 'main.BuildTime=$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"
         

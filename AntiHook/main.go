@@ -27,8 +27,8 @@ const (
 
 // 这些变量可以在编译时通过 -ldflags 注入
 var (
-	DefaultServerURL  = "http://localhost:8045"
-	DefaultBackendURL = "http://localhost:8008"
+	DefaultServerURL  = ""
+	DefaultBackendURL = ""
 	BuildVersion      = "dev"
 	BuildTime         = "unknown"
 )
@@ -45,6 +45,8 @@ func init() {
 
 func main() {
 	recoverFlag := flag.Bool("recover", false, "Restore original Kiro protocol handler")
+	configFlag := flag.Bool("config", false, "Run configuration wizard and exit")
+	printConfigPathFlag := flag.Bool("print-config-path", false, "Print config file path and exit")
 	flag.Parse()
 
 	if *recoverFlag {
@@ -53,6 +55,24 @@ func main() {
 			os.Exit(1)
 		}
 		showMessageBox("Success", "Protocol handler restored!", 0x40)
+		return
+	}
+
+	if *printConfigPathFlag {
+		path, err := configFilePath()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Println(path)
+		return
+	}
+
+	if *configFlag {
+		if err := runConfigWizard("手动"); err != nil {
+			showMessageBox("Error", "Config failed: "+err.Error(), 0x10)
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -67,6 +87,11 @@ func main() {
 			handleAntiProtocolCall(args[0])
 			return
 		}
+	}
+
+	if err := maybeRunFirstRunConfig(); err != nil {
+		showMessageBox("Error", "Config failed: "+err.Error(), 0x10)
+		os.Exit(1)
 	}
 
 	if err := install(); err != nil {
@@ -169,10 +194,10 @@ func handleProtocolCall(rawURL string) {
 		logFile.WriteString(fmt.Sprintf("\n=== %s ===\n", time.Now().Format("2006-01-02 15:04:05")))
 		logFile.WriteString(fmt.Sprintf("Received kiro:// callback: %s\n", rawURL))
 	}
-	
+
 	// 记录接收到的回调 URL
 	fmt.Printf("Received kiro:// callback: %s\n", rawURL)
-	
+
 	// 移除了 "Logging in..." 弹框
 
 	if err := postCallback(rawURL); err != nil {
@@ -210,9 +235,9 @@ func postCallback(callbackURL string) error {
 		return fmt.Errorf("failed to serialize request body: %w", err)
 	}
 
-	serverURL := os.Getenv("KIRO_SERVER_URL")
-	if serverURL == "" {
-		serverURL = DefaultServerURL
+	serverURL, err := resolveKiroServerURL()
+	if err != nil {
+		return err
 	}
 
 	apiURL := serverURL + "/api/kiro/oauth/callback"
@@ -330,9 +355,10 @@ func handleAntiProtocolCall(rawURL string) {
 		return
 	}
 
-	serverURL := os.Getenv("BACKEND_URL")
-	if serverURL == "" {
-		serverURL = DefaultBackendURL
+	serverURL, err := resolveBackendURL()
+	if err != nil {
+		showMessageBox("Error", "Invalid backend URL: "+err.Error(), 0x10)
+		return
 	}
 
 	authResp, err := requestOAuthAuthorize(serverURL, params.Bearer, params.IsShared)

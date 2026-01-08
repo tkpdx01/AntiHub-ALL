@@ -12,6 +12,5 @@
 # 生产环境示例：
 # SERVER_URL="https://your-kiro-server.com"
 # BACKEND_URL="https://your-backend-server.com"
-KIRO_SERVER_URL=https://antihub.zxiaoruan.cn
-SERVER_URL=https://antihub.zxiaoruan.cn
-BACKEND_URL=https://antihub.zxiaoruan.cn
+# KIRO_SERVER_URL="https://your-kiro-server.com"
+# BACKEND_URL="https://your-backend-server.com"

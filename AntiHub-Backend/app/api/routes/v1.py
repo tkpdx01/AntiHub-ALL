@@ -183,7 +183,12 @@ async def chat_completions(
             
             return StreamingResponse(
                 generate(),
-                media_type="text/event-stream"
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
+                },
             )
         else:
             # 非流式请求

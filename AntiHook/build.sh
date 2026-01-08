@@ -9,8 +9,8 @@ VERSION="1.0.0"
 BUILD_DIR="build"
 
 # 默认配置（开发环境）
-DEFAULT_SERVER_URL="http://localhost:8045"
-DEFAULT_BACKEND_URL="http://localhost:8008"
+DEFAULT_SERVER_URL=""
+DEFAULT_BACKEND_URL=""
 
 # 读取配置文件（如果存在）
 CONFIG_FILE=".build.config"
@@ -20,7 +20,7 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 # 环境变量优先级最高
-SERVER_URL="${SERVER_URL:-$DEFAULT_SERVER_URL}"
+KIRO_SERVER_URL="${KIRO_SERVER_URL:-${SERVER_URL:-$DEFAULT_SERVER_URL}}"
 BACKEND_URL="${BACKEND_URL:-$DEFAULT_BACKEND_URL}"
 
 # 颜色输出
@@ -31,8 +31,8 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}AntiHook Build Script${NC}"
 echo "Version: $VERSION"
-echo -e "${YELLOW}Server URL: $SERVER_URL${NC}"
-echo -e "${YELLOW}Backend URL: $BACKEND_URL${NC}"
+echo -e "${YELLOW}Kiro Server URL: ${KIRO_SERVER_URL:-<empty>}${NC}"
+echo -e "${YELLOW}Backend URL: ${BACKEND_URL:-<empty>}${NC}"
 echo ""
 
 # 创建构建目录
@@ -56,7 +56,7 @@ BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # 构建 ldflags
 LDFLAGS="-s -w"
-LDFLAGS="$LDFLAGS -X 'main.DefaultServerURL=$SERVER_URL'"
+LDFLAGS="$LDFLAGS -X 'main.DefaultServerURL=$KIRO_SERVER_URL'"
 LDFLAGS="$LDFLAGS -X 'main.DefaultBackendURL=$BACKEND_URL'"
 LDFLAGS="$LDFLAGS -X 'main.BuildVersion=$VERSION'"
 LDFLAGS="$LDFLAGS -X 'main.BuildTime=$BUILD_TIME'"
