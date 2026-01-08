@@ -1,7 +1,6 @@
 """
 Kiro账号管理API路由
 提供Kiro账号的管理操作，通过插件API实现
-仅对beta用户开放
 """
 import secrets
 from typing import Optional
@@ -9,14 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db_session, get_redis
-from app.api.deps_beta import require_beta_user
+from app.api.deps import get_db_session, get_redis, get_current_user
 from app.models.user import User
 from app.services.kiro_service import KiroService, UpstreamAPIError
 from app.schemas.kiro import KiroOAuthAuthorizeRequest, KiroOAuthCallbackRequest
 from app.cache import RedisClient
 
-router = APIRouter(prefix="/api/kiro", tags=["Kiro账号管理 (Beta)"])
+router = APIRouter(prefix="/api/kiro", tags=["Kiro账号管理"])
 
 
 def get_kiro_service(
@@ -32,11 +30,11 @@ def get_kiro_service(
 @router.post(
     "/oauth/authorize",
     summary="获取Kiro OAuth授权URL",
-    description="获取Kiro账号OAuth授权URL（Beta功能）"
+    description="获取Kiro账号OAuth授权URL"
 )
 async def get_oauth_authorize_url(
     request: KiroOAuthAuthorizeRequest,
-    current_user: User = Depends(require_beta_user),
+    current_user: User = Depends(get_current_user),
     service: KiroService = Depends(get_kiro_service)
 ):
     """
@@ -114,11 +112,11 @@ async def submit_oauth_callback(
 @router.get(
     "/oauth/status/{state}",
     summary="轮询Kiro OAuth授权状态",
-    description="轮询Kiro账号OAuth授权状态（Beta功能）"
+    description="轮询Kiro账号OAuth授权状态"
 )
 async def get_oauth_status(
     state: str,
-    current_user: User = Depends(require_beta_user),
+    current_user: User = Depends(get_current_user),
     service: KiroService = Depends(get_kiro_service)
 ):
     """
@@ -152,11 +150,11 @@ async def get_oauth_status(
 @router.post(
     "/accounts",
     summary="创建Kiro账号",
-    description="创建新的Kiro账号（Beta功能，需要加入beta计划）"
+    description="创建新的Kiro账号"
 )
 async def create_account(
     account_data: dict,
-    current_user: User = Depends(require_beta_user),
+    current_user: User = Depends(get_current_user),
     service: KiroService = Depends(get_kiro_service)
 ):
     """
@@ -260,10 +258,10 @@ async def create_account(
 @router.get(
     "/accounts",
     summary="获取Kiro账号列表",
-    description="获取当前用户的所有Kiro账号（Beta功能）"
+    description="获取当前用户的所有Kiro账号"
 )
 async def list_accounts(
-    current_user: User = Depends(require_beta_user),
+    current_user: User = Depends(get_current_user),
     service: KiroService = Depends(get_kiro_service)
 ):
     """获取用户的所有Kiro账号"""
@@ -288,11 +286,11 @@ async def list_accounts(
 @router.get(
     "/accounts/{account_id}",
     summary="获取单个Kiro账号",
-    description="获取指定Kiro账号的详细信息（Beta功能）"
+    description="获取指定Kiro账号的详细信息"
 )
 async def get_account(
     account_id: str,
-    current_user: User = Depends(require_beta_user),
+    current_user: User = Depends(get_current_user),
     service: KiroService = Depends(get_kiro_service)
 ):
     """获取单个账号信息"""
@@ -317,12 +315,12 @@ async def get_account(
 @router.put(
     "/accounts/{account_id}/status",
     summary="更新账号状态",
-    description="启用或禁用Kiro账号（Beta功能）"
+    description="启用或禁用Kiro账号"
 )
 async def update_account_status(
     account_id: str,
     update_data: dict,
-    current_user: User = Depends(require_beta_user),
+    current_user: User = Depends(get_current_user),
     service: KiroService = Depends(get_kiro_service)
 ):
     """
@@ -360,12 +358,12 @@ async def update_account_status(
 @router.put(
     "/accounts/{account_id}/name",
     summary="更新账号名称",
-    description="修改Kiro账号的显示名称（Beta功能）"
+    description="修改Kiro账号的显示名称"
 )
 async def update_account_name(
     account_id: str,
     update_data: dict,
-    current_user: User = Depends(require_beta_user),
+    current_user: User = Depends(get_current_user),
     service: KiroService = Depends(get_kiro_service)
 ):
     """
@@ -403,11 +401,11 @@ async def update_account_name(
 @router.get(
     "/accounts/{account_id}/balance",
     summary="获取账号余额",
-    description="获取Kiro账号的使用量和余额信息（Beta功能）"
+    description="获取Kiro账号的使用量和余额信息"
 )
 async def get_account_balance(
     account_id: str,
-    current_user: User = Depends(require_beta_user),
+    current_user: User = Depends(get_current_user),
     service: KiroService = Depends(get_kiro_service)
 ):
     """获取账号余额"""
@@ -432,7 +430,7 @@ async def get_account_balance(
 @router.get(
     "/accounts/{account_id}/consumption",
     summary="获取账号消费记录",
-    description="获取Kiro账号的消费记录和统计（Beta功能）"
+    description="获取Kiro账号的消费记录和统计"
 )
 async def get_account_consumption(
     account_id: str,
@@ -440,7 +438,7 @@ async def get_account_consumption(
     offset: int = Query(0, description="偏移量"),
     start_date: Optional[str] = Query(None, description="开始日期（ISO格式）"),
     end_date: Optional[str] = Query(None, description="结束日期（ISO格式）"),
-    current_user: User = Depends(require_beta_user),
+    current_user: User = Depends(get_current_user),
     service: KiroService = Depends(get_kiro_service)
 ):
     """获取账号消费记录"""
@@ -472,12 +470,12 @@ async def get_account_consumption(
 @router.get(
     "/consumption/stats",
     summary="获取用户总消费统计",
-    description="获取用户所有Kiro账号的总消费统计（Beta功能）"
+    description="获取用户所有Kiro账号的总消费统计"
 )
 async def get_user_consumption_stats(
     start_date: Optional[str] = Query(None, description="开始日期（ISO格式）"),
     end_date: Optional[str] = Query(None, description="结束日期（ISO格式）"),
-    current_user: User = Depends(require_beta_user),
+    current_user: User = Depends(get_current_user),
     service: KiroService = Depends(get_kiro_service)
 ):
     """获取用户总消费统计"""
@@ -506,11 +504,11 @@ async def get_user_consumption_stats(
 @router.delete(
     "/accounts/{account_id}",
     summary="删除Kiro账号",
-    description="删除指定的Kiro账号（Beta功能）"
+    description="删除指定的Kiro账号"
 )
 async def delete_account(
     account_id: str,
-    current_user: User = Depends(require_beta_user),
+    current_user: User = Depends(get_current_user),
     service: KiroService = Depends(get_kiro_service)
 ):
     """删除Kiro账号"""

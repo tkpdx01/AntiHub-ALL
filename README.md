@@ -33,6 +33,8 @@ docker compose up -d
 
 - Username/password: set `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env`, restart backend once, then visit `/auth` to sign in
 
+Note: In shared Docker networks (e.g. 1Panel), prefer `http://antihub-backend:8000` as the in-container backend address.
+
 - 直连：`http://localhost:3000`（或你在 `.env` 里设置的 `WEB_PORT`）
 - 或者用你自己的反代把域名转发到前端端口
 
