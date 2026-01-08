@@ -850,6 +850,7 @@ router.post('/v1/kiro/chat/completions', authenticateApiKey, async (req, res) =>
     let toolCallArgs = ''; // 累积工具调用参数用于计算token
     let toolCallIndex = 0; // 跟踪工具调用索引
     let responseEnded = false; // 标记响应是否已结束
+    let keepAliveTimer = null;
 
     try {
       // 先尝试获取账号，如果失败则返回错误状态码
@@ -857,12 +858,32 @@ router.post('/v1/kiro/chat/completions', authenticateApiKey, async (req, res) =>
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+
+      res.write(': ok\n\n');
+
+      keepAliveTimer = setInterval(() => {
+        if (responseEnded) return;
+        try {
+          res.write(': keep-alive\n\n');
+        } catch (e) {
+          responseEnded = true;
+        }
+      }, 15000);
+
       // 监听响应关闭事件
       res.on('close', () => {
         responseEnded = true;
+        if (keepAliveTimer) {
+          clearInterval(keepAliveTimer);
+          keepAliveTimer = null;
+        }
       });
-      
+
       await kiroClient.generateResponse(messages, model, (data) => {
         // 如果响应已结束，不再写入数据
         if (responseEnded) {
@@ -958,6 +979,10 @@ router.post('/v1/kiro/chat/completions', authenticateApiKey, async (req, res) =>
 
       // 发送带usage的finish chunk
       try {
+        if (keepAliveTimer) {
+          clearInterval(keepAliveTimer);
+          keepAliveTimer = null;
+        }
         const finishChunk = {
           id,
           object: 'chat.completion.chunk',
@@ -981,9 +1006,14 @@ router.post('/v1/kiro/chat/completions', authenticateApiKey, async (req, res) =>
       if (responseEnded) {
         return;
       }
-      
+
+      if (keepAliveTimer) {
+        clearInterval(keepAliveTimer);
+        keepAliveTimer = null;
+      }
+
       logger.error('Kiro生成响应失败:', error.message);
-      
+
       // 根据错误类型返回适当的状态码
       let statusCode = 500;
       let errorMessage = error.message;
