@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { getCurrentUser, joinBeta, type UserResponse } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { getCurrentUser, joinBeta, logout, type UserResponse } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Badge as Badge1 } from '@/components/ui/badge-1';
 import { Button as StatefulButton } from '@/components/ui/stateful-button';
 import { MorphingSquare } from '@/components/ui/morphing-square';
-import { IconUser, IconCalendar, IconShield, IconClock } from '@tabler/icons-react';
+import { IconUser, IconCalendar, IconShield, IconClock, IconLogout } from '@tabler/icons-react';
 import Toaster, { ToasterRef } from '@/components/ui/toast';
 import {
   Dialog,
@@ -21,6 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 
 export default function ProfilePage() {
+  const router = useRouter();
   const toasterRef = useRef<ToasterRef>(null);
   const [user, setUser] = useState<UserResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -73,6 +75,31 @@ export default function ProfilePage() {
       });
     } finally {
       setIsJoiningBeta(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toasterRef.current?.show({
+        title: '退出成功',
+        message: '您已成功退出登录',
+        variant: 'success',
+        position: 'top-right',
+      });
+      router.push('/auth');
+    } catch (err) {
+      console.error('Logout failed:', err);
+      // 即使后端登出失败,也清除本地数据并跳转
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      toasterRef.current?.show({
+        title: '退出成功',
+        message: '您已成功退出登录',
+        variant: 'success',
+        position: 'top-right',
+      });
+      router.push('/auth');
     }
   };
 
@@ -217,6 +244,26 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
         )}
+
+        {/* 退出登录卡片 */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-destructive">账号操作</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              退出登录后，您需要重新输入凭证才能访问您的账户。
+            </p>
+            <Button
+              variant="destructive"
+              onClick={handleLogout}
+              className="cursor-pointer"
+            >
+              <IconLogout className="mr-2 size-4" />
+              退出登录
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* 确认对话框 */}
         <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>

@@ -4,10 +4,9 @@ import * as React from "react"
 import {
   IconChartBar,
   IconDashboard,
-  IconHelp,
   IconListDetails,
   IconSettings,
-  IconDeviceImacCode
+  IconUserCircle
 } from "@tabler/icons-react"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
@@ -31,7 +30,7 @@ const data = {
   },
   navMain: [
     {
-      title: "Antigravity + Kiro",
+      title: "仪表板",
       url: "/dashboard",
       icon: IconDashboard,
     },
@@ -44,11 +43,6 @@ const data = {
       title: "用量统计",
       url: "/dashboard/analytics",
       icon: IconChartBar,
-    },
-    {
-      title: "演练场",
-      url: "/dashboard/playground",
-      icon: IconDeviceImacCode,
     }
   ],
   navSecondary: [
@@ -58,10 +52,10 @@ const data = {
       icon: IconSettings,
     },
     {
-      title: "帮助",
-      url: "/dashboard/help",
-      icon: IconHelp,
-    },
+      title: "用户信息",
+      url: "/dashboard/profile",
+      icon: IconUserCircle,
+    }
   ]
 }
 

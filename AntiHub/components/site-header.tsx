@@ -13,8 +13,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/analytics': '用量统计',
   '/dashboard/settings': '设置',
   '/dashboard/profile': '用户信息',
-  '/dashboard/help': '帮助中心',
-  '/dashboard/playground': '演练场',
 }
 
 export function SiteHeader() {

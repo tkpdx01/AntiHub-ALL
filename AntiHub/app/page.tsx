@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { CardSpotlight } from '@/components/ui/card-spotlight';
@@ -9,7 +9,7 @@ import {
   IconRocket,
   IconShield,
   IconBolt,
-  IconUsers,
+  IconServer,
   IconChartBar,
   IconKey,
   IconArrowRight,
@@ -18,11 +18,33 @@ import {
 } from '@tabler/icons-react';
 import Hyperspeed from '@/components/Hyperspeed';
 import { hyperspeedPresets } from '@/lib/hyperspeed-presets';
-import LogoLoop from '@/components/LogoLoop';
-import { Gemini, OpenAI, Anthropic, DeepSeek, XAI, Minimax, Qwen, Mistral } from '@lobehub/icons';
+import { ChatGLM, Claude, Gemini, Qwen, OpenAI, Zhipu, Anthropic } from '@lobehub/icons';
 import { Header } from '@/components/ui/header-1';
 import { ShinyButton } from "@/components/ui/shiny-button";
 import { isAuthenticated } from '@/lib/api';
+import { motion, useScroll, useTransform } from 'framer-motion';
+
+// 滚动动画组件
+function ScrollSection({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"]
+  });
+
+  const opacity = useTransform(scrollYProgress, [0, 0.3, 0.7, 1], [0, 1, 1, 0]);
+  const y = useTransform(scrollYProgress, [0, 0.3, 0.7, 1], [50, 0, 0, -50]);
+
+  return (
+    <motion.div
+      ref={ref}
+      style={{ opacity, y }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -30,13 +52,23 @@ export default function Home() {
   useEffect(() => {
     setIsLoggedIn(isAuthenticated());
   }, []);
+
+  const heroRef = useRef<HTMLDivElement>(null);
+  const { scrollY } = useScroll();
+  const heroOpacity = useTransform(scrollY, [0, 300], [1, 0]);
+  const heroY = useTransform(scrollY, [0, 300], [0, -150]);
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
       <Header />
 
       {/* Hero Section with Hyperspeed Background */}
-      <section className="relative h-[calc(100vh-4rem)] flex items-center justify-center overflow-hidden">
+      <motion.section
+        ref={heroRef}
+        style={{ opacity: heroOpacity, y: heroY }}
+        className="relative h-[calc(100vh-4rem)] flex items-center justify-center overflow-hidden"
+      >
         {/* Hyperspeed Background */}
         <div className="absolute inset-0 z-0">
           <Hyperspeed effectOptions={hyperspeedPresets.one as any} />
@@ -72,112 +104,74 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      {/* Logo Loop Section */}
-      <section className="relative bg-black py-16">
-        <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">
-          <p className="text-center text-md text-white mb-8 font-semibold">深受合作伙伴信任</p>
-          <div className="h-24 relative overflow-hidden">
-            <LogoLoop
-              logos={[
-                {
-                  node: <Gemini className="size-12" />,
-                  title: 'Google Gemini',
-                  href: 'https://gemini.google.com'
-                },
-                {
-                  node: <OpenAI className="size-12" />,
-                  title: 'OpenAI',
-                  href: 'https://openai.com'
-                },
-                {
-                  node: <Anthropic className="size-12" />,
-                  title: 'Anthropic',
-                  href: 'https://anthropic.com'
-                },
-                {
-                  node: <DeepSeek className="size-12" />,
-                  title: 'DeepSeek',
-                  href: 'https://deepseek.com'
-                },
-                {
-                  node: <XAI className="size-12" />,
-                  title: 'xAI (Grok)',
-                  href: 'https://x.ai'
-                },
-                {
-                  node: <Minimax className="size-12" />,
-                  title: 'Minimax',
-                  href: 'https://www.minimaxi.com'
-                },
-                {
-                  node: <Qwen className="size-12" />,
-                  title: 'Qwen',
-                  href: 'https://qwenlm.github.io'
-                },
-                {
-                  node: <Mistral className="size-12" />,
-                  title: 'Mistral AI',
-                  href: 'https://mistral.ai'
-                },
-                {
-                  node: <Gemini className="size-12" />,
-                  title: 'Google Gemini',
-                  href: 'https://gemini.google.com'
-                },
-                {
-                  node: <OpenAI className="size-12" />,
-                  title: 'OpenAI',
-                  href: 'https://openai.com'
-                },
-                {
-                  node: <Anthropic className="size-12" />,
-                  title: 'Anthropic',
-                  href: 'https://anthropic.com'
-                },
-                {
-                  node: <DeepSeek className="size-12" />,
-                  title: 'DeepSeek',
-                  href: 'https://deepseek.com'
-                },
-                {
-                  node: <XAI className="size-12" />,
-                  title: 'xAI (Grok)',
-                  href: 'https://x.ai'
-                },
-                {
-                  node: <Minimax className="size-12" />,
-                  title: 'Minimax',
-                  href: 'https://www.minimaxi.com'
-                },
-                {
-                  node: <Qwen className="size-12" />,
-                  title: 'Qwen',
-                  href: 'https://qwenlm.github.io'
-                },
-                {
-                  node: <Mistral className="size-12" />,
-                  title: 'Mistral AI',
-                  href: 'https://mistral.ai'
-                },
-              ]}
-              speed={120}
-              direction="left"
-              logoHeight={48}
-              gap={80}
-              hoverSpeed={0}
-              scaleOnHover
-              fadeOut
-              fadeOutColor="#000000"
-              ariaLabel="合作伙伴"
-            />
+      {/* Logo Section - 合作伙伴 & 提供模型 */}
+      <ScrollSection className="relative min-h-screen bg-black flex items-center py-20">
+        <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8 w-full">
+          {/* 合作伙伴 */}
+          <div className="mb-20">
+            <p className="text-center text-lg text-white mb-12 font-semibold">深受合作伙伴信任</p>
+            <div className="flex justify-center items-center gap-12 md:gap-20 flex-wrap">
+              <div className="flex flex-col items-center gap-3">
+                <OpenAI className="size-16 text-white" />
+                <span className="text-sm text-gray-400">OpenAI</span>
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                <Gemini className="size-16 text-white" />
+                <span className="text-sm text-gray-400">Google Gemini</span>
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                <Anthropic className="size-16 text-white" />
+                <span className="text-sm text-gray-400">Anthropic</span>
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                <Zhipu className="size-16 text-white" />
+                <span className="text-sm text-gray-400">智谱 AI</span>
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                <Qwen className="size-16 text-white" />
+                <span className="text-sm text-gray-400">Qwen</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 分隔线 */}
+          <div className="max-w-md mx-auto mb-20">
+            <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+          </div>
+
+          {/* 提供模型 */}
+          <div>
+            <p className="text-center text-lg text-white mb-12 font-semibold">提供模型</p>
+            <div className="flex justify-center items-center gap-12 md:gap-20 flex-wrap">
+              <div className="flex flex-col items-center gap-3">
+                <ChatGLM className="size-16 text-white" />
+                <span className="text-sm text-gray-400">智谱 ChatGLM</span>
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                <Claude className="size-16 text-white" />
+                <span className="text-sm text-gray-400">Anthropic Claude</span>
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                <Gemini className="size-16 text-white" />
+                <span className="text-sm text-gray-400">Google Gemini</span>
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                <OpenAI className="size-16 text-white" />
+                <span className="text-sm text-gray-400">OpenAI ChatGPT</span>
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                <Qwen className="size-16 text-white" />
+                <span className="text-sm text-gray-400">Qwen</span>
+              </div>
+            </div>
           </div>
         </div>
-      </section>
+      </ScrollSection>
 
       {/* Features Section */}
-      <section id="features" className="relative bg-gradient-to-b from-black via-gray-900/50 to-black py-20 md:py-32">
+      <ScrollSection className="relative bg-gradient-to-b from-black via-gray-900/50 to-black py-20 md:py-32">
         <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-16">
             <Badge variant="secondary" className="px-4 py-1.5 bg-white/10 border-white/20 text-white">功能特性</Badge>
@@ -228,13 +222,13 @@ export default function Home() {
 
             <CardSpotlight>
               <div className="size-12 rounded-lg bg-white/10 flex items-center justify-center mb-4">
-                <IconUsers className="size-6 text-white" />
+                <IconServer className="size-6 text-white" />
               </div>
               <p className="text-xl font-bold relative z-20 mb-2 text-white">
-                共享机制
+                高可用性
               </p>
               <p className="text-neutral-300 mt-4 relative z-20 text-sm">
-                通过共享账号获得额外配额，降低使用成本，实现互利共赢
+                多节点部署和自动故障转移，确保服务始终在线，稳定可靠
               </p>
             </CardSpotlight>
 
@@ -263,10 +257,10 @@ export default function Home() {
             </CardSpotlight>
           </div>
         </div>
-      </section>
+      </ScrollSection>
 
       {/* CTA Section */}
-      <section className="relative bg-black py-20 md:py-32">
+      <ScrollSection className="relative bg-black py-20 md:py-32">
         <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">
           <div className="bg-black/50 backdrop-blur">
             <div className="flex flex-col items-center text-center space-y-6 py-16 px-6">
@@ -284,7 +278,7 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </section>
+      </ScrollSection>
 
       {/* Footer */}
       <footer className="border-t border-white/10 bg-black">
@@ -310,16 +304,14 @@ export default function Home() {
             <div>
               <h3 className="font-semibold mb-4">资源</h3>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li><Link href="/dashboard/help" className="hover:text-white transition-colors">帮助中心</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">API 文档</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">社区</Link></li>
+                <li><Link href="https://github.com/zhongruan0522/AntiHub-ALL/issues" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">社区</Link></li>
               </ul>
             </div>
             <div>
               <h3 className="font-semibold mb-4">关于</h3>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li><Link href="#about" className="hover:text-white transition-colors">关于我们</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">联系我们</Link></li>
+                <li><Link href="https://github.com/zhongruan0522/AntiHub-ALL" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">关于我们</Link></li>
+                <li><Link href="https://github.com/zhongruan0522/AntiHub-ALL/issues" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">联系我们</Link></li>
                 <li><Link href="#" className="hover:text-white transition-colors">隐私政策</Link></li>
               </ul>
             </div>
@@ -329,7 +321,7 @@ export default function Home() {
               © 2025 AntiHub. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
-              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+              <Link href="https://github.com/zhongruan0522/AntiHub-ALL" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors">
                 <IconBrandGithub className="size-5" />
               </Link>
             </div>
