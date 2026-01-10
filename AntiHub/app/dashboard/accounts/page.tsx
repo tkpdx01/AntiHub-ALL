@@ -940,9 +940,9 @@ export default function AccountsPage() {
                           <TableCell>
                             {account.account_name || account.email || '未命名'}
                           </TableCell>
-                          <TableCell className="font-mono text-sm">        
+                          <TableCell className="font-mono text-sm">
                             {kiroBalances[account.account_id] !== undefined
-                              ? `$${kiroBalances[account.account_id].toFixed(2)}`
+                              ? `$${Number(kiroBalances[account.account_id] || 0).toFixed(2)}`
                               : '加载中...'}
                           </TableCell>
                           <TableCell>
