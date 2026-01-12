@@ -1562,6 +1562,83 @@ export async function pollKiroOAuthStatus(state: string): Promise<{
   );
 }
 
+// ==================== Kiro AWS IdC（AWS Builder ID）相关 API ====================
+
+export type KiroAwsIdcDeviceStatus = 'pending' | 'completed' | 'error' | 'expired';
+
+export interface KiroAwsIdcDeviceAuthorizeResponse {
+  success: boolean;
+  status: KiroAwsIdcDeviceStatus;
+  message?: string;
+  data: {
+    state: string;
+    user_code: string;
+    verification_uri: string;
+    verification_uri_complete: string;
+    expires_in: number;
+    interval: number;
+    expires_at: string;
+  };
+}
+
+export async function kiroAwsIdcDeviceAuthorize(payload: {
+  account_name: string;
+  is_shared?: number;
+}): Promise<KiroAwsIdcDeviceAuthorizeResponse> {
+  return fetchWithAuth<KiroAwsIdcDeviceAuthorizeResponse>(
+    `${API_BASE_URL}/api/kiro/aws-idc/device/authorize`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        account_name: payload.account_name,
+        is_shared: payload.is_shared ?? 0,
+      }),
+    }
+  );
+}
+
+export interface KiroAwsIdcDeviceStatusResponse {
+  success: boolean;
+  status: KiroAwsIdcDeviceStatus;
+  message?: string;
+  retry_after_ms?: number;
+  data?: KiroAccount;
+  error?: any;
+}
+
+export async function kiroAwsIdcDeviceStatus(
+  state: string
+): Promise<KiroAwsIdcDeviceStatusResponse> {
+  return fetchWithAuth<KiroAwsIdcDeviceStatusResponse>(
+    `${API_BASE_URL}/api/kiro/aws-idc/device/status/${encodeURIComponent(state)}`,
+    { method: 'GET' }
+  );
+}
+
+export async function importKiroAwsIdcAccount(payload: {
+  refreshToken: string;
+  clientId: string;
+  clientSecret: string;
+  accountName: string;
+  isShared?: number;
+}): Promise<KiroAccount> {
+  const result = await fetchWithAuth<{ success: boolean; data: KiroAccount }>(
+    `${API_BASE_URL}/api/kiro/aws-idc/import`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        json_files: [
+          { refreshToken: payload.refreshToken },
+          { clientId: payload.clientId, clientSecret: payload.clientSecret },
+        ],
+        account_name: payload.accountName,
+        is_shared: payload.isShared ?? 0,
+      }),
+    }
+  );
+  return result.data;
+}
+
 // ==================== Qwen 账号管理相关 API ====================
 
 /**

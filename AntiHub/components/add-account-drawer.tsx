@@ -11,6 +11,9 @@ import {
   pollQwenOAuthStatus,
   importAccountByRefreshToken,
   importQwenAccount,
+  kiroAwsIdcDeviceAuthorize,
+  kiroAwsIdcDeviceStatus,
+  importKiroAwsIdcAccount,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Button as StatefulButton } from '@/components/ui/stateful-button';
@@ -40,13 +43,18 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
   const toasterRef = useRef<ToasterRef>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [step, setStep] = useState<'platform' | 'provider' | 'method' | 'authorize'>('platform');
+  const [step, setStep] = useState<
+    'platform' | 'kiro_provider' | 'provider' | 'method' | 'authorize'
+  >('platform');
   const [platform, setPlatform] = useState<'antigravity' | 'kiro' | 'qwen' | ''>('');
+  const [kiroProvider, setKiroProvider] = useState<'social' | 'aws_idc' | ''>('');
   const [provider, setProvider] = useState<'Google' | 'Github' | ''>(''); // Kiro OAuth提供商
   const [loginMethod, setLoginMethod] = useState<'antihook' | 'manual' | 'refresh_token' | ''>(''); // Antigravity 登录方式
   const [kiroLoginMethod, setKiroLoginMethod] = useState<'oauth' | 'refresh_token' | ''>('');
+  const [kiroAwsIdcMethod, setKiroAwsIdcMethod] = useState<
+    'device_code' | 'manual_import' | ''
+  >('');
   const [qwenLoginMethod, setQwenLoginMethod] = useState<'oauth' | 'json'>('oauth');
-  const [kiroImportAuthMethod, setKiroImportAuthMethod] = useState<'Social' | 'IdC'>('Social');
   const [kiroImportRefreshToken, setKiroImportRefreshToken] = useState('');
   const [kiroImportClientId, setKiroImportClientId] = useState('');
   const [kiroImportClientSecret, setKiroImportClientSecret] = useState('');
@@ -59,6 +67,18 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
   const [callbackUrl, setCallbackUrl] = useState('');
   const [countdown, setCountdown] = useState(600); // Kiro授权倒计时（600秒）
   const [isWaitingAuth, setIsWaitingAuth] = useState(false); // Kiro是否等待授权中
+
+  const [kiroAwsIdcStatus, setKiroAwsIdcStatus] = useState<
+    'idle' | 'pending' | 'completed' | 'error' | 'expired'
+  >('idle');
+  const [kiroAwsIdcState, setKiroAwsIdcState] = useState('');
+  const [kiroAwsIdcUserCode, setKiroAwsIdcUserCode] = useState('');
+  const [kiroAwsIdcVerificationUri, setKiroAwsIdcVerificationUri] = useState('');
+  const [kiroAwsIdcVerificationUriComplete, setKiroAwsIdcVerificationUriComplete] = useState('');
+  const [kiroAwsIdcExpiresAt, setKiroAwsIdcExpiresAt] = useState('');
+  const [kiroAwsIdcIntervalSeconds, setKiroAwsIdcIntervalSeconds] = useState(5);
+  const [kiroAwsIdcMessage, setKiroAwsIdcMessage] = useState('');
+  const [kiroAwsIdcResult, setKiroAwsIdcResult] = useState<any>(null);
 
   // 清理定时器
   useEffect(() => {
@@ -83,6 +103,22 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
         });
         return;
       }
+      if (platform === 'kiro') {
+        setStep('kiro_provider');
+      } else {
+        setStep('method');
+      }
+    } else if (step === 'kiro_provider') {
+      if (!kiroProvider) {
+        toasterRef.current?.show({
+          title: '选择渠道',
+          message: '请选择 Kiro 授权渠道',
+          variant: 'warning',
+          position: 'top-right',
+        });
+        return;
+      }
+
       setStep('method');
     } else if (step === 'provider') {
       if (!provider) {
@@ -134,26 +170,62 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
       }
 
       if (platform === 'kiro') {
-        if (!kiroLoginMethod) {
-          toasterRef.current?.show({
-            title: '选择方式',
-            message: '请选择添加方式',
-            variant: 'warning',
-            position: 'top-right',
-          });
+        if (kiroProvider === 'social') {
+          if (!kiroLoginMethod) {
+            toasterRef.current?.show({
+              title: '选择方式',
+              message: '请选择添加方式',
+              variant: 'warning',
+              position: 'top-right',
+            });
+            return;
+          }
+
+          if (kiroLoginMethod === 'oauth') {
+            setStep('provider');
+            return;
+          }
+
+          setOauthUrl('');
+          setOauthState('');
+          setCountdown(600);
+          setIsWaitingAuth(false);
+          setStep('authorize');
           return;
         }
 
-        if (kiroLoginMethod === 'oauth') {
-          setStep('provider');
+        if (kiroProvider === 'aws_idc') {
+          if (!kiroAwsIdcMethod) {
+            toasterRef.current?.show({
+              title: '选择方式',
+              message: '请选择添加方式',
+              variant: 'warning',
+              position: 'top-right',
+            });
+            return;
+          }
+
+          setKiroAwsIdcStatus('idle');
+          setKiroAwsIdcMessage('');
+          setKiroAwsIdcResult(null);
+          setKiroAwsIdcState('');
+          setKiroAwsIdcUserCode('');
+          setKiroAwsIdcVerificationUri('');
+          setKiroAwsIdcVerificationUriComplete('');
+          setKiroAwsIdcExpiresAt('');
+          setKiroAwsIdcIntervalSeconds(5);
+          setCountdown(600);
+          setIsWaitingAuth(false);
+          setStep('authorize');
           return;
         }
 
-        setOauthUrl('');
-        setOauthState('');
-        setCountdown(600);
-        setIsWaitingAuth(false);
-        setStep('authorize');
+        toasterRef.current?.show({
+          title: '选择渠道',
+          message: '请先选择 Kiro 授权渠道',
+          variant: 'warning',
+          position: 'top-right',
+        });
         return;
       }
 
@@ -208,12 +280,23 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
   const handleBack = () => {
     if (step === 'provider') {
       setStep('method');
-    } else if (step === 'method') {
+    } else if (step === 'kiro_provider') {
       setStep('platform');
-      if (platform === 'antigravity') {
-        setLoginMethod('');
-      } else if (platform === 'kiro') {
+      setKiroProvider('');
+      setKiroLoginMethod('');
+      setKiroAwsIdcMethod('');
+      setProvider('');
+    } else if (step === 'method') {
+      if (platform === 'kiro') {
+        setStep('kiro_provider');
         setKiroLoginMethod('');
+        setKiroAwsIdcMethod('');
+        setProvider('');
+      } else {
+        setStep('platform');
+        if (platform === 'antigravity') {
+          setLoginMethod('');
+        }
       }
     } else if (step === 'authorize') {
       if (platform === 'kiro' || platform === 'qwen') {
@@ -235,7 +318,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
       } else if (platform === 'antigravity') {
         setStep('method');
       } else {
-        if (kiroLoginMethod === 'oauth') {
+        if (kiroProvider === 'social' && kiroLoginMethod === 'oauth') {
           setStep('provider');
         } else {
           setStep('method');
@@ -247,6 +330,16 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
       setAntigravityImportRefreshToken('');
       setQwenCredentialJson('');
       setQwenAccountName('');
+
+      setKiroAwsIdcStatus('idle');
+      setKiroAwsIdcMessage('');
+      setKiroAwsIdcResult(null);
+      setKiroAwsIdcState('');
+      setKiroAwsIdcUserCode('');
+      setKiroAwsIdcVerificationUri('');
+      setKiroAwsIdcVerificationUriComplete('');
+      setKiroAwsIdcExpiresAt('');
+      setKiroAwsIdcIntervalSeconds(5);
     }
   };
 
@@ -357,6 +450,69 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
         console.error('轮询OAuth状态失败:', error);
       }
     }, 3000); // 每3秒轮询一次
+  };
+
+  // 轮询 Kiro AWS IdC（Builder ID）设备码登录状态
+  const startPollingKiroAwsIdcStatus = (state: string, intervalSeconds: number) => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+    }
+
+    const intervalMs = Math.max(1000, Math.floor(intervalSeconds * 1000));
+
+    pollTimerRef.current = setInterval(async () => {
+      try {
+        const result = await kiroAwsIdcDeviceStatus(state);
+
+        setKiroAwsIdcStatus(result.status);
+        if (typeof result.message === 'string') {
+          setKiroAwsIdcMessage(result.message);
+        }
+
+        if (result.status === 'pending') return;
+
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+
+        setIsWaitingAuth(false);
+
+        if (result.status === 'completed') {
+          setKiroAwsIdcResult(result.data ?? null);
+          toasterRef.current?.show({
+            title: '授权成功',
+            message: '已完成授权，请点击“完成”结束流程',
+            variant: 'success',
+            position: 'top-right',
+          });
+          return;
+        }
+
+        if (result.status === 'expired') {
+          toasterRef.current?.show({
+            title: '授权已过期',
+            message: result.message || '请返回重新开始',
+            variant: 'warning',
+            position: 'top-right',
+          });
+          return;
+        }
+
+        toasterRef.current?.show({
+          title: '授权失败',
+          message: result.message || (result as any).error || '授权失败，请重试',
+          variant: 'error',
+          position: 'top-right',
+        });
+      } catch (error) {
+        console.error('轮询 AWS IdC 状态失败:', error);
+      }
+    }, intervalMs);
   };
 
   // 轮询 Qwen OAuth（Device Flow）登录状态
@@ -519,26 +675,12 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
     }
 
     const accountName = kiroImportAccountName.trim();
-    const clientId = kiroImportClientId.trim();
-    const clientSecret = kiroImportClientSecret.trim();
-
-    if (kiroImportAuthMethod === 'IdC' && (!clientId || !clientSecret)) {
-      toasterRef.current?.show({
-        title: '输入错误',
-        message: 'IdC 方式需要 client_id 和 client_secret',
-        variant: 'warning',
-        position: 'top-right',
-      });
-      return;
-    }
 
     try {
       await createKiroAccount({
         refresh_token: refreshToken,
-        auth_method: kiroImportAuthMethod,
+        auth_method: 'Social',
         account_name: accountName || undefined,
-        client_id: kiroImportAuthMethod === 'IdC' ? clientId : undefined,       
-        client_secret: kiroImportAuthMethod === 'IdC' ? clientSecret : undefined,
         is_shared: 0,
       });
 
@@ -562,6 +704,128 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
       });
       throw err;
     }
+  };
+
+  const handleImportKiroAwsIdcAccount = async () => {
+    const accountName = kiroImportAccountName.trim();
+    const refreshToken = kiroImportRefreshToken.trim();
+    const clientId = kiroImportClientId.trim();
+    const clientSecret = kiroImportClientSecret.trim();
+
+    if (!accountName) {
+      toasterRef.current?.show({
+        title: '输入错误',
+        message: '请填写 account_name（用于区分你的 Builder ID 账号）',
+        variant: 'warning',
+        position: 'top-right',
+      });
+      return;
+    }
+    if (!refreshToken || !clientId || !clientSecret) {
+      toasterRef.current?.show({
+        title: '输入错误',
+        message: '请填写 refresh_token / client_id / client_secret',
+        variant: 'warning',
+        position: 'top-right',
+      });
+      return;
+    }
+
+    try {
+      await importKiroAwsIdcAccount({
+        refreshToken,
+        clientId,
+        clientSecret,
+        accountName,
+        isShared: 0,
+      });
+
+      toasterRef.current?.show({
+        title: '导入成功',
+        message: 'AWS-IMA（Builder ID）账号已成功添加',
+        variant: 'success',
+        position: 'top-right',
+      });
+
+      window.dispatchEvent(new CustomEvent('accountAdded'));
+      onOpenChange(false);
+      resetState();
+      onSuccess?.();
+    } catch (err) {
+      toasterRef.current?.show({
+        title: '导入失败',
+        message: err instanceof Error ? err.message : '导入 AWS-IMA（Builder ID）账号失败',
+        variant: 'error',
+        position: 'top-right',
+      });
+      throw err;
+    }
+  };
+
+  const handleStartKiroAwsIdcDevice = async () => {
+    const accountName = kiroImportAccountName.trim();
+    if (!accountName) {
+      toasterRef.current?.show({
+        title: '输入错误',
+        message: '请先填写 account_name（用于区分你的 Builder ID 账号）',
+        variant: 'warning',
+        position: 'top-right',
+      });
+      return;
+    }
+
+    try {
+      setKiroAwsIdcStatus('pending');
+      setKiroAwsIdcMessage('');
+      setKiroAwsIdcResult(null);
+      setKiroAwsIdcState('');
+      setKiroAwsIdcUserCode('');
+      setKiroAwsIdcVerificationUri('');
+      setKiroAwsIdcVerificationUriComplete('');
+      setKiroAwsIdcExpiresAt('');
+      setKiroAwsIdcIntervalSeconds(5);
+
+      const result = await kiroAwsIdcDeviceAuthorize({
+        account_name: accountName,
+        is_shared: 0,
+      });
+
+      setKiroAwsIdcStatus(result.status);
+      if (typeof result.message === 'string') {
+        setKiroAwsIdcMessage(result.message);
+      }
+
+      setKiroAwsIdcState(result.data.state);
+      setKiroAwsIdcUserCode(result.data.user_code);
+      setKiroAwsIdcVerificationUri(result.data.verification_uri);
+      setKiroAwsIdcVerificationUriComplete(result.data.verification_uri_complete);
+      setKiroAwsIdcExpiresAt(result.data.expires_at);
+      setKiroAwsIdcIntervalSeconds(result.data.interval);
+
+      setCountdown(result.data.expires_in);
+      setIsWaitingAuth(true);
+      startCountdownTimer(result.data.expires_in);
+      startPollingKiroAwsIdcStatus(result.data.state, result.data.interval);
+
+      window.open(result.data.verification_uri_complete, '_blank', 'width=600,height=700');
+    } catch (err) {
+      setIsWaitingAuth(false);
+      setKiroAwsIdcStatus('error');
+      toasterRef.current?.show({
+        title: '发起授权失败',
+        message: err instanceof Error ? err.message : '发起 AWS-IMA（Builder ID）授权失败',
+        variant: 'error',
+        position: 'top-right',
+      });
+      throw err;
+    }
+  };
+
+  const handleFinishKiroAwsIdcDevice = () => {
+    window.dispatchEvent(new CustomEvent('accountAdded'));
+    onOpenChange(false);
+    resetState();
+    onSuccess?.();
   };
 
   const handleStartQwenOAuth = async () => {
@@ -711,11 +975,12 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
 
     setStep('platform');
     setPlatform('');
+    setKiroProvider('');
     setProvider('');
     setLoginMethod('');
     setKiroLoginMethod('');
+    setKiroAwsIdcMethod('');
     setQwenLoginMethod('oauth');
-    setKiroImportAuthMethod('Social');
     setKiroImportRefreshToken('');
     setKiroImportClientId('');
     setKiroImportClientSecret('');
@@ -728,6 +993,16 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
     setCallbackUrl('');
     setCountdown(600);
     setIsWaitingAuth(false);
+
+    setKiroAwsIdcStatus('idle');
+    setKiroAwsIdcState('');
+    setKiroAwsIdcUserCode('');
+    setKiroAwsIdcVerificationUri('');
+    setKiroAwsIdcVerificationUriComplete('');
+    setKiroAwsIdcExpiresAt('');
+    setKiroAwsIdcIntervalSeconds(5);
+    setKiroAwsIdcMessage('');
+    setKiroAwsIdcResult(null);
   };
 
   // 获取 Antihook 登录链接
@@ -769,9 +1044,9 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
       // 可以通过其他方式检测，但最可靠的是让用户选择
       // 这里默认检测：如果是 ARM64 架构就下载 arm64 版本
       const isAppleSilicon =
-        // @ts-ignore - navigator.userAgentData 是新 API
+        // @ts-expect-error - navigator.userAgentData 是新 API
         navigator.userAgentData?.platform === 'macOS' &&
-        // @ts-ignore
+        // @ts-expect-error - userAgentData 类型兼容
         navigator.userAgentData?.architecture === 'arm';
 
       if (isAppleSilicon) {
@@ -938,7 +1213,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                       <Badge variant="secondary">可用</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Google 与 Github OAuth
+                      Google/Github OAuth 或 AWS-IMA（Builder ID）
                     </p>
                   </div>
                 </label>
@@ -974,8 +1249,77 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
             </div>
           )}
 
-          {/* 步骤 2: 选择OAuth提供商 (仅Kiro) */}
-          {step === 'provider' && platform === 'kiro' && (
+          {/* 步骤 2: 选择 Kiro 授权渠道 */}
+          {step === 'kiro_provider' && platform === 'kiro' && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                你希望通过哪条链路添加 Kiro 账号？
+              </p>
+
+              <div className="space-y-3">
+                <label
+                  className={cn(
+                    "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
+                    kiroProvider === 'social'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="kiroProvider"
+                    value="social"
+                    checked={kiroProvider === 'social'}
+                    onChange={() => {
+                      setKiroProvider('social');
+                      setProvider('');
+                      setKiroLoginMethod('');
+                      setKiroAwsIdcMethod('');
+                    }}
+                    className="w-4 h-4 mt-1"
+                  />
+                  <div className="flex-1">
+                    <h3 className="font-semibold">Kiro OAuth（Google / Github）</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      适合你使用 Google / Github 登录 Kiro
+                    </p>
+                  </div>
+                </label>
+
+                <label
+                  className={cn(
+                    "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
+                    kiroProvider === 'aws_idc'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="kiroProvider"
+                    value="aws_idc"
+                    checked={kiroProvider === 'aws_idc'}
+                    onChange={() => {
+                      setKiroProvider('aws_idc');
+                      setProvider('');
+                      setKiroLoginMethod('');
+                      setKiroAwsIdcMethod('');
+                    }}
+                    className="w-4 h-4 mt-1"
+                  />
+                  <div className="flex-1">
+                    <h3 className="font-semibold">AWS-IMA（Builder ID / AWS IdC）</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      设备码一键登录或手动导入（refresh_token + client）
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* 步骤 3: 选择OAuth提供商 (仅Kiro OAuth) */}
+          {step === 'provider' && platform === 'kiro' && kiroProvider === 'social' && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 你希望以何种方式登录 Kiro ?
@@ -1121,51 +1465,113 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                 选择添加方式
               </p>
 
-              <div className="space-y-3">
-                <label
-                  className={cn(
-                    "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
-                    kiroLoginMethod === 'oauth' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="kiroLoginMethod"
-                    value="oauth"
-                    checked={kiroLoginMethod === 'oauth'}
-                    onChange={() => setKiroLoginMethod('oauth')}
-                    className="w-4 h-4 mt-1"
-                  />
-                  <div className="flex-1">
-                    <h3 className="font-semibold">一键登录（OAuth）</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Google / Github 授权，完成后自动添加账号
-                    </p>
-                  </div>
-                </label>
+              {kiroProvider === 'social' ? (
+                <div className="space-y-3">
+                  <label
+                    className={cn(
+                      "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
+                      kiroLoginMethod === 'oauth'
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="kiroLoginMethod"
+                      value="oauth"
+                      checked={kiroLoginMethod === 'oauth'}
+                      onChange={() => setKiroLoginMethod('oauth')}
+                      className="w-4 h-4 mt-1"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-semibold">一键登录（OAuth）</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Google / Github 授权，完成后自动添加账号
+                      </p>
+                    </div>
+                  </label>
 
-                <label
-                  className={cn(
-                    "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
-                    kiroLoginMethod === 'refresh_token' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="kiroLoginMethod"
-                    value="refresh_token"
-                    checked={kiroLoginMethod === 'refresh_token'}
-                    onChange={() => setKiroLoginMethod('refresh_token')}
-                    className="w-4 h-4 mt-1"
-                  />
-                  <div className="flex-1">
-                    <h3 className="font-semibold">Refresh Token 导入</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      直接粘贴 refresh_token 导入账号（适合已有 Token）
-                    </p>
-                  </div>
-                </label>
-              </div>
+                  <label
+                    className={cn(
+                      "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
+                      kiroLoginMethod === 'refresh_token'
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="kiroLoginMethod"
+                      value="refresh_token"
+                      checked={kiroLoginMethod === 'refresh_token'}
+                      onChange={() => setKiroLoginMethod('refresh_token')}
+                      className="w-4 h-4 mt-1"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-semibold">Refresh Token 导入</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        直接粘贴 refresh_token 导入账号（适合已有 Token）
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              ) : kiroProvider === 'aws_idc' ? (
+                <div className="space-y-3">
+                  <label
+                    className={cn(
+                      "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
+                      kiroAwsIdcMethod === 'device_code'
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="kiroAwsIdcMethod"
+                      value="device_code"
+                      checked={kiroAwsIdcMethod === 'device_code'}
+                      onChange={() => setKiroAwsIdcMethod('device_code')}
+                      className="w-4 h-4 mt-1"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-semibold">一键登录（设备码，推荐）</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        生成 user_code 后在页面完成授权，系统自动轮询落库
+                      </p>
+                    </div>
+                  </label>
+
+                  <label
+                    className={cn(
+                      "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
+                      kiroAwsIdcMethod === 'manual_import'
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="kiroAwsIdcMethod"
+                      value="manual_import"
+                      checked={kiroAwsIdcMethod === 'manual_import'}
+                      onChange={() => setKiroAwsIdcMethod('manual_import')}
+                      className="w-4 h-4 mt-1"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-semibold">手动导入（refresh_token + client）</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        适合你已拿到 token.json / client.json（或手动抠出字段）
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              ) : (
+                <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                  <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                    请先返回选择 Kiro 授权渠道
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -1389,6 +1795,222 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                     />
                   </div>
                 </>
+              ) : platform === 'kiro' && kiroProvider === 'aws_idc' && kiroAwsIdcMethod === 'device_code' ? (
+                <>
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">AWS-IMA（Builder ID）设备码授权</Label>
+                    <p className="text-sm text-muted-foreground">
+                      生成设备码后在打开的页面完成授权；系统会自动轮询直到成功。
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                      <strong>提示</strong>
+                      <br />
+                      token 不会回传到前端；服务端仅在短 TTL 状态中暂存并安全落库。
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label htmlFor="kiro-aws-idc-device-account-name" className="text-base font-semibold">
+                      account_name
+                    </Label>
+                    <Input
+                      id="kiro-aws-idc-device-account-name"
+                      placeholder="例如：my-builder-id"
+                      value={kiroImportAccountName}
+                      onChange={(e) => setKiroImportAccountName(e.target.value)}
+                      className="h-12"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">授权操作</Label>
+                    <div className="flex gap-2">
+                      <StatefulButton
+                        onClick={handleStartKiroAwsIdcDevice}
+                        disabled={isWaitingAuth && countdown > 0}
+                        className="flex-1 cursor-pointer"
+                      >
+                        {kiroAwsIdcState ? '重新生成并打开' : '生成并打开授权页面'}
+                      </StatefulButton>
+
+                      <Button
+                        onClick={() => {
+                          if (kiroAwsIdcVerificationUriComplete) {
+                            window.open(kiroAwsIdcVerificationUriComplete, '_blank', 'width=600,height=700');
+                          }
+                        }}
+                        variant="outline"
+                        size="lg"
+                        disabled={!kiroAwsIdcVerificationUriComplete}
+                      >
+                        <IconExternalLink className="size-4 mr-2" />
+                        打开
+                      </Button>
+
+                      <Button
+                        onClick={() => {
+                          if (kiroAwsIdcVerificationUriComplete) {
+                            navigator.clipboard.writeText(kiroAwsIdcVerificationUriComplete);
+                            toasterRef.current?.show({
+                              title: '复制成功',
+                              message: '授权链接已复制到剪贴板',
+                              variant: 'success',
+                              position: 'top-right',
+                            });
+                          }
+                        }}
+                        variant="outline"
+                        size="lg"
+                        disabled={!kiroAwsIdcVerificationUriComplete}
+                      >
+                        <IconCopy className="size-4 mr-2" />
+                        复制
+                      </Button>
+                    </div>
+
+                    {kiroAwsIdcVerificationUriComplete && (
+                      <Input
+                        value={kiroAwsIdcVerificationUriComplete}
+                        readOnly
+                        className="font-mono text-xs h-10"
+                      />
+                    )}
+
+                    {isWaitingAuth && countdown > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        正在等待授权... 剩余 {formatCountdown(countdown)}
+                      </p>
+                    )}
+                  </div>
+
+                  {kiroAwsIdcUserCode && (
+                    <div className="space-y-3">
+                      <Label className="text-base font-semibold">user_code</Label>
+                      <div className="flex gap-2">
+                        <Input value={kiroAwsIdcUserCode} readOnly className="h-12 font-mono text-sm" />
+                        <Button
+                          onClick={() => {
+                            navigator.clipboard.writeText(kiroAwsIdcUserCode);
+                            toasterRef.current?.show({
+                              title: '复制成功',
+                              message: 'user_code 已复制到剪贴板',
+                              variant: 'success',
+                              position: 'top-right',
+                            });
+                          }}
+                          variant="outline"
+                          size="lg"
+                        >
+                          <IconCopy className="size-4 mr-2" />
+                          复制
+                        </Button>
+                      </div>
+                      {kiroAwsIdcVerificationUri && (
+                        <p className="text-sm text-muted-foreground">
+                          如果页面没有自动填充，请在 {kiroAwsIdcVerificationUri} 输入上述 code。
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {kiroAwsIdcStatus === 'completed' && (
+                    <div className="p-4 bg-green-500/10 rounded-lg border border-green-500/20">
+                      <p className="text-sm text-green-700 dark:text-green-400">
+                        授权已完成，可以点击右下角“完成”结束流程。
+                      </p>
+                      {kiroAwsIdcResult?.account_id && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          account_id: <span className="font-mono">{kiroAwsIdcResult.account_id}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {(kiroAwsIdcStatus === 'error' || kiroAwsIdcStatus === 'expired' || countdown === 0) && (
+                    <div className="p-4 bg-destructive/10 rounded-lg border border-destructive/20">
+                      <p className="text-sm text-destructive text-center">
+                        {kiroAwsIdcMessage || '授权已结束，请返回重新开始'}
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : platform === 'kiro' && kiroProvider === 'aws_idc' && kiroAwsIdcMethod === 'manual_import' ? (
+                <>
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">AWS-IMA（Builder ID）手动导入</Label>
+                    <p className="text-sm text-muted-foreground">
+                      提供 refresh_token + client_id + client_secret；服务端不会回传 token。
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                      <strong>提示</strong>
+                      <br />
+                      refresh_token / client_secret 属于敏感信息，请只在可信环境中粘贴，并避免截图/外发。
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label htmlFor="kiro-aws-idc-import-account-name" className="text-base font-semibold">
+                      account_name（必填）
+                    </Label>
+                    <Input
+                      id="kiro-aws-idc-import-account-name"
+                      placeholder="例如：my-builder-id"
+                      value={kiroImportAccountName}
+                      onChange={(e) => setKiroImportAccountName(e.target.value)}
+                      className="h-12"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="kiro-client-id" className="text-base font-semibold">
+                        client_id
+                      </Label>
+                      <Input
+                        id="kiro-client-id"
+                        placeholder="请输入 client_id"
+                        value={kiroImportClientId}
+                        onChange={(e) => setKiroImportClientId(e.target.value)}
+                        className="h-12 font-mono text-sm"
+                        autoComplete="off"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="kiro-client-secret" className="text-base font-semibold">
+                        client_secret
+                      </Label>
+                      <Input
+                        id="kiro-client-secret"
+                        placeholder="请输入 client_secret"
+                        value={kiroImportClientSecret}
+                        onChange={(e) => setKiroImportClientSecret(e.target.value)}
+                        className="h-12 font-mono text-sm"
+                        autoComplete="off"
+                        type="password"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label htmlFor="kiro-refresh-token" className="text-base font-semibold">
+                      refresh_token
+                    </Label>
+                    <Textarea
+                      id="kiro-refresh-token"
+                      placeholder="在此粘贴 refresh_token"
+                      value={kiroImportRefreshToken}
+                      onChange={(e) => setKiroImportRefreshToken(e.target.value)}
+                      className="font-mono text-sm min-h-[140px]"
+                    />
+                  </div>
+                </>
               ) : platform === 'kiro' && kiroLoginMethod === 'refresh_token' ? (
                 <>
                   <div className="space-y-3">
@@ -1417,15 +2039,15 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                       <label
                         className={cn(
                           "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
-                          kiroImportAuthMethod === 'Social' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                          kiroProvider === 'social' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
                         )}
                       >
                         <input
                           type="radio"
                           name="kiroAuthMethod"
                           value="Social"
-                          checked={kiroImportAuthMethod === 'Social'}
-                          onChange={() => setKiroImportAuthMethod('Social')}
+                          checked={kiroProvider === 'social'}
+                          onChange={() => setKiroProvider('social')}
                           className="w-4 h-4 mt-1"
                         />
                         <div className="flex-1">
@@ -1439,15 +2061,15 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                       <label
                         className={cn(
                           "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
-                          kiroImportAuthMethod === 'IdC' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                          kiroProvider === 'aws_idc' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
                         )}
                       >
                         <input
                           type="radio"
                           name="kiroAuthMethod"
                           value="IdC"
-                          checked={kiroImportAuthMethod === 'IdC'}
-                          onChange={() => setKiroImportAuthMethod('IdC')}
+                          checked={kiroProvider === 'aws_idc'}
+                          onChange={() => setKiroProvider('aws_idc')}
                           className="w-4 h-4 mt-1"
                         />
                         <div className="flex-1">
@@ -1460,7 +2082,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                     </div>
                   </div>
 
-                  {kiroImportAuthMethod === 'IdC' && (
+                  {kiroProvider === 'aws_idc' && (
                     <div className="space-y-3">
                       <div className="space-y-2">
                         <Label htmlFor="kiro-client-id" className="text-base font-semibold">
@@ -1506,7 +2128,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                     />
                   </div>
                 </>
-              ) : platform === 'kiro' ? (
+              ) : platform === 'kiro' && kiroProvider === 'social' ? (
                 // Kiro账号 - 显示等待授权状态
                 <>
                   <div className="space-y-3">
@@ -1576,6 +2198,12 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                     </div>
                   )}
                 </>
+              ) : platform === 'kiro' ? (
+                <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                  <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                    请返回选择 Kiro 授权渠道与添加方式
+                  </p>
+                </div>
               ) : (
                 // Antigravity账号 - 手动提交回调
                 <>
@@ -1669,25 +2297,69 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                 </Button>
               )
             ) : platform === 'kiro' ? (
-              // Kiro账号不需要手动提交
-              kiroLoginMethod === 'refresh_token' ? (
-                <StatefulButton
-                  onClick={handleImportKiroAccount}
-                  disabled={
-                    !kiroImportRefreshToken.trim() ||
-                    (kiroImportAuthMethod === 'IdC' && (!kiroImportClientId.trim() || !kiroImportClientSecret.trim()))
-                  }
-                  className="flex-1 cursor-pointer"
-                >
-                  完成导入
-                </StatefulButton>
+              kiroProvider === 'aws_idc' ? (
+                kiroAwsIdcMethod === 'manual_import' ? (
+                  <StatefulButton
+                    onClick={handleImportKiroAwsIdcAccount}
+                    disabled={
+                      !kiroImportAccountName.trim() ||
+                      !kiroImportRefreshToken.trim() ||
+                      !kiroImportClientId.trim() ||
+                      !kiroImportClientSecret.trim()
+                    }
+                    className="flex-1 cursor-pointer"
+                  >
+                    完成导入
+                  </StatefulButton>
+                ) : kiroAwsIdcMethod === 'device_code' ? (
+                  kiroAwsIdcStatus === 'completed' ? (
+                    <Button
+                      onClick={handleFinishKiroAwsIdcDevice}
+                      className="flex-1 cursor-pointer"
+                    >
+                      完成
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleClose}
+                      disabled={isWaitingAuth && countdown > 0}
+                      className="flex-1 cursor-pointer"
+                    >
+                      {isWaitingAuth && countdown > 0 ? '等待授权中...' : '关闭'}
+                    </Button>
+                  )
+                ) : (
+                  <Button
+                    onClick={handleClose}
+                    className="flex-1 cursor-pointer"
+                  >
+                    关闭
+                  </Button>
+                )
+              ) : kiroProvider === 'social' ? (
+                kiroLoginMethod === 'refresh_token' ? (
+                  <StatefulButton
+                    onClick={handleImportKiroAccount}
+                    disabled={!kiroImportRefreshToken.trim()}
+                    className="flex-1 cursor-pointer"
+                  >
+                    完成导入
+                  </StatefulButton>
+                ) : (
+                  <Button
+                    onClick={handleClose}
+                    disabled={isWaitingAuth && countdown > 0}
+                    className="flex-1 cursor-pointer"
+                  >
+                    {isWaitingAuth && countdown > 0 ? '等待授权中...' : '关闭'}
+                  </Button>
+                )
               ) : (
                 <Button
                   onClick={handleClose}
-                  disabled={isWaitingAuth && countdown > 0}
                   className="flex-1 cursor-pointer"
                 >
-                  {isWaitingAuth && countdown > 0 ? '等待授权中...' : '关闭'}
+                  关闭
                 </Button>
               )
             ) : (
@@ -1716,7 +2388,9 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
               disabled={
                 platform === 'antigravity' ? !loginMethod :
                 platform === 'qwen' ? !qwenLoginMethod :
-                !kiroLoginMethod
+                kiroProvider === 'social' ? !kiroLoginMethod :
+                kiroProvider === 'aws_idc' ? !kiroAwsIdcMethod :
+                true
               }
               className="flex-1 cursor-pointer"
             >
@@ -1725,7 +2399,11 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
           ) : (
             <Button
               onClick={handleContinue}
-              disabled={(step === 'platform' && !platform) || (step === 'provider' && !provider)}
+              disabled={
+                (step === 'platform' && !platform) ||
+                (step === 'kiro_provider' && !kiroProvider) ||
+                (step === 'provider' && !provider)
+              }
               className="flex-1 cursor-pointer"
             >
               继续
