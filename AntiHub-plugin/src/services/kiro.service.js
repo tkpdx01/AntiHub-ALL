@@ -1052,10 +1052,10 @@ class KiroService {
     logger.info(`[${requestId}] 开始获取Kiro可用模型列表`);
 
     return new Promise((resolve, reject) => {
-      const params = new URLSearchParams({
-        origin: 'AI_EDITOR',
-        profileArn: profileArn
-      });
+      const params = new URLSearchParams({ origin: 'AI_EDITOR' });
+      if (typeof profileArn === 'string' && profileArn.trim()) {
+        params.append('profileArn', profileArn.trim());
+      }
 
       const invocationId = crypto.randomUUID();
       const kiroUserAgent = `KiroIDE-${KIRO_IDE_VERSION}-${machineid}`;
@@ -1129,9 +1129,11 @@ class KiroService {
       const params = new URLSearchParams({
         isEmailRequired: true,
         origin: 'AI_EDITOR',
-        profileArn: profileArn,
         resourceType: 'AGENTIC_REQUEST'
       });
+      if (typeof profileArn === 'string' && profileArn.trim()) {
+        params.append('profileArn', profileArn.trim());
+      }
 
       const invocationId = crypto.randomUUID();
       const kiroUserAgent = `KiroIDE-${KIRO_IDE_VERSION}-${machineid}`;
