@@ -3,7 +3,7 @@ name: Build & Push Docker Images
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ["v*", "V*"]
   workflow_dispatch:
 
 env:
@@ -18,6 +18,7 @@ jobs:
       backend: ${{ steps.force.outputs.backend || steps.filter.outputs.backend }}
       plugin: ${{ steps.force.outputs.plugin || steps.filter.outputs.plugin }}
       antihook: ${{ steps.force.outputs.antihook || steps.filter.outputs.antihook }}
+      tag_name: ${{ steps.tag.outputs.tag_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,17 +49,28 @@ jobs:
 
       - name: Force build all on manual dispatch or tag
         id: force
-        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V')
         run: |
           echo "web=true" >> $GITHUB_OUTPUT
           echo "backend=true" >> $GITHUB_OUTPUT
           echo "plugin=true" >> $GITHUB_OUTPUT
           echo "antihook=true" >> $GITHUB_OUTPUT
 
+      - name: Extract and normalize tag name
+        id: tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          # 提取 tag 名并转小写
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          LOWER_TAG=$(echo "$TAG_NAME" | tr '[:upper:]' '[:lower:]')
+          echo "tag_name=$LOWER_TAG" >> $GITHUB_OUTPUT
+          echo "Original tag: $TAG_NAME"
+          echo "Normalized tag: $LOWER_TAG"
+
   # 构建 AntiHook 多平台二进制文件
   build-antihook:
     needs: changes
-    if: needs.changes.outputs.antihook == 'true' || needs.changes.outputs.web == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    if: needs.changes.outputs.antihook == 'true' || needs.changes.outputs.web == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V')
     runs-on: ubuntu-latest
     env:
       KIRO_SERVER_URL: ${{ secrets.KIRO_SERVER_URL || '' }}
@@ -130,7 +142,7 @@ jobs:
   build-web:
     needs: [changes, build-antihook]
     # 当 web 或 antihook 有变更时，或者手动触发时，或者打 tag 时构建
-    if: always() && (needs.changes.outputs.web == 'true' || needs.changes.outputs.antihook == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v'))
+    if: always() && (needs.changes.outputs.web == 'true' || needs.changes.outputs.antihook == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -172,7 +184,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/antihub-web
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=tag
+            type=raw,value=${{ needs.changes.outputs.tag_name }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
             type=sha
 
       - name: Build & push (web)
@@ -191,7 +204,7 @@ jobs:
   build-backend:
     needs: changes
     # 当 backend 有变更时，或者手动触发时，或者打 tag 时构建
-    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -221,7 +234,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/antihub-backend
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=tag
+            type=raw,value=${{ needs.changes.outputs.tag_name }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
             type=sha
 
       - name: Build & push (backend)
@@ -240,7 +254,7 @@ jobs:
   build-plugin:
     needs: changes
     # 当 plugin 有变更时，或者手动触发时，或者打 tag 时构建
-    if: needs.changes.outputs.plugin == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    if: needs.changes.outputs.plugin == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -270,7 +284,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/antihub-plugin
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=tag
+            type=raw,value=${{ needs.changes.outputs.tag_name }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
             type=sha
 
       - name: Build & push (plugin)
