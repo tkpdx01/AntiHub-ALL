@@ -121,7 +121,7 @@ class QwenClient {
     const stream = !!body?.stream;
     const account = await this.getAvailableAccount(user_id, user, excludeAccountIds);
     const baseURL = this.resolveBaseURL(account);
-    const url = `${baseURL.replace(/\\/$/, '')}/chat/completions`;
+    const url = `${baseURL.replace(/\/$/, '')}/chat/completions`;
 
     const resp = await fetch(url, {
       method: 'POST',
@@ -157,4 +157,3 @@ class QwenClient {
 
 const qwenClient = new QwenClient();
 export default qwenClient;
-
