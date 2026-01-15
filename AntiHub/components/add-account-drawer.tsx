@@ -896,7 +896,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
 
         <Toaster ref={toasterRef} defaultPosition="top-right" />
 
-        <div className="px-4 py-6 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 space-y-6">
           {/* 步骤 1: 选择平台 */}
           {step === 'platform' && (
             <div className="space-y-4">
@@ -1525,7 +1525,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                       placeholder="在此粘贴 refresh_token"
                       value={kiroImportRefreshToken}
                       onChange={(e) => setKiroImportRefreshToken(e.target.value)}
-                      className="font-mono text-sm min-h-[140px]"
+                      className="font-mono text-sm min-h-[110px]"
                     />
                   </div>
                 </>
@@ -1542,7 +1542,16 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                     <p className="text-xs text-yellow-600 dark:text-yellow-400">
                       <strong>获取 RefreshToken（Kiro Web）</strong>
                       <br />
-                      1. 打开 <span className="font-mono">https://app.kiro.dev/account/usage</span> 并登录
+                      1. 打开{' '}
+                      <a
+                        href="https://app.kiro.dev/account/usage"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono underline underline-offset-2"
+                      >
+                        https://app.kiro.dev/account/usage
+                      </a>{' '}
+                      并登录
                       <br />
                       2. 按 <span className="font-mono">F12</span> 打开开发者工具
                       <br />
@@ -1550,7 +1559,15 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                       <br />
                       4. 左侧展开 存储/Storage → Cookie
                       <br />
-                      5. 选择 <span className="font-mono">https://app.kiro.dev</span>
+                      5. 选择{' '}
+                      <a
+                        href="https://app.kiro.dev"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono underline underline-offset-2"
+                      >
+                        https://app.kiro.dev
+                      </a>
                       <br />
                       6. 找到名称为 <span className="font-mono">RefreshToken</span> 的条目，复制其 值/Value
                       <br />
@@ -1581,7 +1598,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                       placeholder="在此粘贴 refresh_token"
                       value={kiroImportRefreshToken}
                       onChange={(e) => setKiroImportRefreshToken(e.target.value)}
-                      className="font-mono text-sm min-h-[140px]"
+                      className="font-mono text-sm min-h-[110px]"
                     />
                   </div>
                 </>
