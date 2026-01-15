@@ -16,7 +16,7 @@
 1. Antigravity：已完全支持
 2. Kiro-OAuth(GitHub/Google): 已完全支持
 3. Kiro-Token: 已完全支持
-4. Kiro-AWS IMA: 测试结果成功导入
+4. Kiro-AWS IMA: 已完全支持
 5. QwenCli: 已完成开发，待测试
 
 
