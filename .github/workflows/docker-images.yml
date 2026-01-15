@@ -2,7 +2,7 @@ name: Build & Push Docker Images
 
 on:
   push:
-    branches: [main]
+    branches: [main, Beta]
     tags: ["v*", "V*"]
   workflow_dispatch:
 
@@ -142,16 +142,23 @@ jobs:
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/antihub-web"
           BUILD_TAG="build-${{ github.run_id }}"
-          
+
+          # 根据分支决定标签
+          if [[ "${{ github.ref_name }}" == "Beta" ]]; then
+            LATEST_TAG="beta"
+          else
+            LATEST_TAG="latest"
+          fi
+
           # 创建 manifest
-          docker buildx imagetools create -t ${IMAGE}:latest \
+          docker buildx imagetools create -t ${IMAGE}:${LATEST_TAG} \
             ${IMAGE}:${BUILD_TAG}-amd64 \
             ${IMAGE}:${BUILD_TAG}-arm64
-          
+
           docker buildx imagetools create -t ${IMAGE}:sha-${GITHUB_SHA::7} \
             ${IMAGE}:${BUILD_TAG}-amd64 \
             ${IMAGE}:${BUILD_TAG}-arm64
-          
+
           # 如果是 tag 推送，额外打版本号
           if [[ "${{ needs.changes.outputs.tag_name }}" != "" ]]; then
             docker buildx imagetools create -t ${IMAGE}:${{ needs.changes.outputs.tag_name }} \
@@ -220,15 +227,22 @@ jobs:
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/antihub-backend"
           BUILD_TAG="build-${{ github.run_id }}"
-          
-          docker buildx imagetools create -t ${IMAGE}:latest \
+
+          # 根据分支决定标签
+          if [[ "${{ github.ref_name }}" == "Beta" ]]; then
+            LATEST_TAG="beta"
+          else
+            LATEST_TAG="latest"
+          fi
+
+          docker buildx imagetools create -t ${IMAGE}:${LATEST_TAG} \
             ${IMAGE}:${BUILD_TAG}-amd64 \
             ${IMAGE}:${BUILD_TAG}-arm64
-          
+
           docker buildx imagetools create -t ${IMAGE}:sha-${GITHUB_SHA::7} \
             ${IMAGE}:${BUILD_TAG}-amd64 \
             ${IMAGE}:${BUILD_TAG}-arm64
-          
+
           if [[ "${{ needs.changes.outputs.tag_name }}" != "" ]]; then
             docker buildx imagetools create -t ${IMAGE}:${{ needs.changes.outputs.tag_name }} \
               ${IMAGE}:${BUILD_TAG}-amd64 \
@@ -296,15 +310,22 @@ jobs:
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/antihub-plugin"
           BUILD_TAG="build-${{ github.run_id }}"
-          
-          docker buildx imagetools create -t ${IMAGE}:latest \
+
+          # 根据分支决定标签
+          if [[ "${{ github.ref_name }}" == "Beta" ]]; then
+            LATEST_TAG="beta"
+          else
+            LATEST_TAG="latest"
+          fi
+
+          docker buildx imagetools create -t ${IMAGE}:${LATEST_TAG} \
             ${IMAGE}:${BUILD_TAG}-amd64 \
             ${IMAGE}:${BUILD_TAG}-arm64
-          
+
           docker buildx imagetools create -t ${IMAGE}:sha-${GITHUB_SHA::7} \
             ${IMAGE}:${BUILD_TAG}-amd64 \
             ${IMAGE}:${BUILD_TAG}-arm64
-          
+
           if [[ "${{ needs.changes.outputs.tag_name }}" != "" ]]; then
             docker buildx imagetools create -t ${IMAGE}:${{ needs.changes.outputs.tag_name }} \
               ${IMAGE}:${BUILD_TAG}-amd64 \
