@@ -27,7 +27,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
-import { IconExternalLink, IconCopy, IconX, IconDownload } from '@tabler/icons-react';
+import { IconExternalLink, IconCopy, IconX } from '@tabler/icons-react';
 import { Qwen } from '@lobehub/icons';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -49,7 +49,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
   const [platform, setPlatform] = useState<'antigravity' | 'kiro' | 'qwen' | ''>('');
   const [kiroProvider, setKiroProvider] = useState<'social' | 'aws_idc' | ''>('');
   const [provider, setProvider] = useState<'Google' | 'Github' | ''>(''); // Kiro OAuth提供商
-  const [loginMethod, setLoginMethod] = useState<'antihook' | 'manual' | 'refresh_token' | ''>(''); // Antigravity 登录方式
+  const [loginMethod, setLoginMethod] = useState<'manual' | 'refresh_token' | ''>(''); // Antigravity 登录方式
   const [kiroLoginMethod, setKiroLoginMethod] = useState<'oauth' | 'refresh_token' | ''>('');
   const [kiroAwsIdcMethod, setKiroAwsIdcMethod] = useState<
     'device_code' | 'manual_import' | ''
@@ -236,19 +236,6 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
           variant: 'warning',
           position: 'top-right',
         });
-        return;
-      }
-      
-      // 如果选择 Antihook 登录，直接拉起 Antihook，弹出提示并关闭 Drawer
-      if (loginMethod === 'antihook') {
-        handleOpenAntihook();
-        toasterRef.current?.show({
-          title: '请在 Antihook 中继续操作',
-          message: '授权成功后账号将自动添加到您的账号列表',
-          variant: 'success',
-          position: 'top-right',
-        });
-        handleClose();
         return;
       }
 
@@ -1005,96 +992,6 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
     setKiroAwsIdcResult(null);
   };
 
-  // 获取 Antihook 登录链接
-  const getAntihookUrl = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-    if (!token) return '';
-    // URL 格式: anti://antigravity?identity=<token>&is_shared=0（个人使用固定专属）
-    return `anti://antigravity?identity=${encodeURIComponent(token)}&is_shared=0`;
-  };
-
-  // 打开 Antihook 登录
-  const handleOpenAntihook = () => {
-    const antihookUrl = getAntihookUrl();
-    if (antihookUrl) {
-      window.location.href = antihookUrl;
-    }
-  };
-
-  /**
-   * 自动检测用户平台并下载对应的 AntiHook 二进制文件
-   * 支持：Windows、macOS (Intel/ARM)
-   * Linux 暂不支持（AntiHook 没有 Linux 实现）
-   * 如果无法检测则弹出提示让用户手动选择
-   */
-  const handleDownloadAntiHook = () => {
-    const userAgent = navigator.userAgent.toLowerCase();
-    const platform = navigator.platform?.toLowerCase() || '';
-
-    let downloadPath = '';
-    let platformName = '';
-
-    // 检测操作系统
-    if (userAgent.includes('win') || platform.includes('win')) {
-      downloadPath = '/downloads/antihook-windows-amd64.exe';
-      platformName = 'Windows';
-    } else if (userAgent.includes('mac') || platform.includes('mac')) {
-      // macOS 需要区分 Intel 和 Apple Silicon
-      // 注意：navigator.platform 在 Apple Silicon 上仍可能返回 "MacIntel"
-      // 可以通过其他方式检测，但最可靠的是让用户选择
-      // 这里默认检测：如果是 ARM64 架构就下载 arm64 版本
-      const isAppleSilicon =
-        // @ts-expect-error - navigator.userAgentData 是新 API
-        navigator.userAgentData?.platform === 'macOS' &&
-        // @ts-expect-error - userAgentData 类型兼容
-        navigator.userAgentData?.architecture === 'arm';
-
-      if (isAppleSilicon) {
-        downloadPath = '/downloads/antihook-darwin-arm64';
-        platformName = 'macOS (Apple Silicon)';
-      } else {
-        // 无法准确检测，默认下载 arm64，因为现在大多数新 Mac 都是 Apple Silicon
-        downloadPath = '/downloads/antihook-darwin-arm64';
-        platformName = 'macOS';
-      }
-    } else if (userAgent.includes('linux') || platform.includes('linux')) {
-      // Linux 暂不支持
-      toasterRef.current?.show({
-        title: 'Linux 暂不支持',
-        message: 'AntiHook 目前仅支持 Windows 和 macOS',
-        variant: 'warning',
-        position: 'top-right',
-      });
-      return;
-    }
-
-    if (downloadPath) {
-      // 创建隐藏的下载链接并触发下载
-      const link = document.createElement('a');
-      link.href = downloadPath;
-      link.download = downloadPath.split('/').pop() || 'antihook';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toasterRef.current?.show({
-        title: '开始下载',
-        message: `正在下载 AntiHook (${platformName})`,
-        variant: 'success',
-        position: 'top-right',
-      });
-    } else {
-      // 无法检测平台，提示用户
-      toasterRef.current?.show({
-        title: '无法检测系统',
-        message: '请访问 GitHub Releases 手动下载对应版本',
-        variant: 'warning',
-        position: 'top-right',
-      });
-      window.open('https://github.com/AntiHub-Project/AntiHook/releases', '_blank');
-    }
-  };
-
   const handleClose = () => {
     // 立即清理定时器
     if (timerRef.current) {
@@ -1383,23 +1280,6 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                   </div>
                 </label>
               </div>
-
-              <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-                <p className="text-xs text-yellow-600 dark:text-yellow-400">
-                  <strong>重要指示</strong>
-                  <br />
-                  要登录 Kiro ，请先下载并运行至少一次{' '}
-                  <button
-                    type="button"
-                    onClick={handleDownloadAntiHook}
-                    className="underline hover:text-yellow-700 dark:hover:text-yellow-300 inline-flex items-center gap-1"
-                  >
-                    <IconDownload className="size-3" />
-                    AntiHook
-                  </button>
-                  。
-                </p>
-              </div>
             </div>
           )}
 
@@ -1582,42 +1462,6 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
               </p>
 
               <div className="space-y-3">
-                {/* Antihook 登录 */}
-                <label
-                  className={cn(
-                    "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
-                    loginMethod === 'antihook' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="loginMethod"
-                    value="antihook"
-                    checked={loginMethod === 'antihook'}
-                    onChange={() => setLoginMethod('antihook')}
-                    className="w-4 h-4 mt-1"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold">通过 Antihook 登录</h3>
-                    </div>
-                    {loginMethod === 'antihook' && (
-                      <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
-                        请确保已安装并运行{' '}
-                        <button
-                          type="button"
-                          onClick={handleDownloadAntiHook}
-                          className="underline hover:text-yellow-700 dark:hover:text-yellow-300 inline-flex items-center gap-1"
-                        >
-                          <IconDownload className="size-3" />
-                          AntiHook
-                        </button>
-                        {' '}客户端
-                      </p>
-                    )}
-                  </div>
-                </label>
-
                 {/* 手动提交回调 */}
                 <label
                   className={cn(

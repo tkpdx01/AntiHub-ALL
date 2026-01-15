@@ -17,7 +17,6 @@ jobs:
       web: ${{ steps.force.outputs.web || steps.filter.outputs.web }}
       backend: ${{ steps.force.outputs.backend || steps.filter.outputs.backend }}
       plugin: ${{ steps.force.outputs.plugin || steps.filter.outputs.plugin }}
-      antihook: ${{ steps.force.outputs.antihook || steps.filter.outputs.antihook }}
       tag_name: ${{ steps.tag.outputs.tag_name }}
     steps:
       - name: Checkout
@@ -34,8 +33,6 @@ jobs:
               - 'AntiHub-Backend/**'
             plugin:
               - 'AntiHub-plugin/**'
-            antihook:
-              - 'AntiHook/**'
           ignore: |
             **/*.md
             docs/**
@@ -54,7 +51,6 @@ jobs:
           echo "web=true" >> $GITHUB_OUTPUT
           echo "backend=true" >> $GITHUB_OUTPUT
           echo "plugin=true" >> $GITHUB_OUTPUT
-          echo "antihook=true" >> $GITHUB_OUTPUT
 
       - name: Extract and normalize tag name
         id: tag
@@ -67,82 +63,11 @@ jobs:
           echo "Original tag: $TAG_NAME"
           echo "Normalized tag: $LOWER_TAG"
 
-  # 构建 AntiHook 多平台二进制文件
-  build-antihook:
-    needs: changes
-    if: needs.changes.outputs.antihook == 'true' || needs.changes.outputs.web == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V')
-    runs-on: ubuntu-latest
-    env:
-      KIRO_SERVER_URL: ${{ secrets.KIRO_SERVER_URL || '' }}
-      BACKEND_URL: ${{ secrets.BACKEND_URL || '' }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-
-      - name: Get dependencies
-        working-directory: ./AntiHook
-        run: go mod download
-
-      - name: Generate version
-        id: version
-        run: |
-          short_sha=$(echo "${{ github.sha }}" | cut -c1-7)
-          date=$(date -u +"%Y%m%d-%H%M%S")
-          version="dev-$date-$short_sha"
-          echo "VERSION=$version" >> $GITHUB_OUTPUT
-          echo "Generated version: $version"
-
-      - name: Build AntiHook for all platforms
-        working-directory: ./AntiHook
-        run: |
-          mkdir -p ../AntiHub/public/downloads
-
-          LDFLAGS="-s -w"
-          LDFLAGS="$LDFLAGS -X 'main.DefaultServerURL=${{ secrets.KIRO_SERVER_URL || '' }}'"
-          LDFLAGS="$LDFLAGS -X 'main.DefaultBackendURL=${{ secrets.BACKEND_URL || '' }}'"
-          LDFLAGS="$LDFLAGS -X 'main.BuildVersion=${{ steps.version.outputs.VERSION }}'"
-          LDFLAGS="$LDFLAGS -X 'main.BuildTime=$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"
-
-          # Windows amd64
-          echo "Building for Windows amd64..."
-          GOOS=windows GOARCH=amd64 go build -v -ldflags="$LDFLAGS" -o ../AntiHub/public/downloads/antihook-windows-amd64.exe .
-
-          # macOS amd64 (Intel)
-          echo "Building for macOS amd64..."
-          GOOS=darwin GOARCH=amd64 go build -v -ldflags="$LDFLAGS" -o ../AntiHub/public/downloads/antihook-darwin-amd64 .
-
-          # macOS arm64 (Apple Silicon)
-          echo "Building for macOS arm64..."
-          GOOS=darwin GOARCH=arm64 go build -v -ldflags="$LDFLAGS" -o ../AntiHub/public/downloads/antihook-darwin-arm64 .
-
-          # 注意：Linux 暂不支持，因为 AntiHook 的 registry 包没有 Linux 实现
-
-          echo "All builds completed!"
-          ls -lh ../AntiHub/public/downloads/
-
-      - name: Create version info file
-        run: |
-          echo "{\"version\": \"${{ steps.version.outputs.VERSION }}\", \"buildTime\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\", \"commit\": \"${{ github.sha }}\"}" > ./AntiHub/public/downloads/version.json
-          cat ./AntiHub/public/downloads/version.json
-
-      - name: Upload AntiHook artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: antihook-binaries
-          path: ./AntiHub/public/downloads/
-          retention-days: 1
-
   # 构建 Web 镜像
   build-web:
-    needs: [changes, build-antihook]
-    # 当 web 或 antihook 有变更时，或者手动触发时，或者打 tag 时构建
-    if: always() && (needs.changes.outputs.web == 'true' || needs.changes.outputs.antihook == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V'))
+    needs: changes
+    # 当 web 有变更时，或者手动触发时，或者打 tag 时构建
+    if: needs.changes.outputs.web == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -151,18 +76,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Download AntiHook binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: antihook-binaries
-          path: ./AntiHub/public/downloads/
-        continue-on-error: true
-
-      - name: Verify downloads directory
-        run: |
-          echo "Contents of downloads directory:"
-          ls -la ./AntiHub/public/downloads/ || echo "Downloads directory not found or empty"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
