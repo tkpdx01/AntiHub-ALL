@@ -8,7 +8,7 @@ FROM python:3.10-slim-bookworm AS builder
 WORKDIR /build
 
 # 安装 uv（超快的 Python 包管理器）
-RUN pip install uv --no-cache
+RUN pip install uv --no-cache-dir
 
 # 复制依赖文件
 COPY pyproject.toml uv.lock* ./

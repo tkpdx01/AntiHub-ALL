@@ -3,7 +3,10 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   createKiroAccount,
+  getKiroAccountBalance,
+  getKiroOAuthAuthorizeUrl,
   getOAuthAuthorizeUrl,
+  pollKiroOAuthStatus,
   submitOAuthCallback,
   getQwenOAuthAuthorizeUrl,
   pollQwenOAuthStatus,
@@ -37,17 +40,49 @@ interface AddAccountDrawerProps {
   onSuccess?: () => void;
 }
 
+type KiroBatchImportStatus = 'pending' | 'success' | 'error';
+
+interface KiroBatchImportResult {
+  index: number;
+  status: KiroBatchImportStatus;
+  email?: string;
+  available?: number;
+  message?: string;
+}
+
+type AntiHookOS = 'windows' | 'darwin' | 'linux';
+type AntiHookArch = 'amd64' | 'arm64';
+
+const ANTIHOOK_DOWNLOAD_OPTIONS: Array<{
+  label: string;
+  os: AntiHookOS;
+  arch: AntiHookArch;
+}> = [
+  { label: 'Windows x64', os: 'windows', arch: 'amd64' },
+  { label: 'Windows ARM64', os: 'windows', arch: 'arm64' },
+  { label: 'macOS Intel', os: 'darwin', arch: 'amd64' },
+  { label: 'macOS Apple Silicon', os: 'darwin', arch: 'arm64' },
+  { label: 'Linux x64', os: 'linux', arch: 'amd64' },
+  { label: 'Linux ARM64', os: 'linux', arch: 'arm64' },
+];
+
+const getAntiHookAssetName = (os: AntiHookOS, arch: AntiHookArch) => {
+  const ext = os === 'windows' ? '.exe' : '';
+  return `antihook-${os}-${arch}${ext}`;
+};
+
 export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDrawerProps) {
   const toasterRef = useRef<ToasterRef>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const kiroBatchCancelRef = useRef(false);
   const [step, setStep] = useState<
     'platform' | 'kiro_provider' | 'method' | 'authorize'
   >('platform');
   const [platform, setPlatform] = useState<'antigravity' | 'kiro' | 'qwen' | ''>('');
   const [kiroProvider, setKiroProvider] = useState<'social' | 'aws_idc' | ''>('');
   const [loginMethod, setLoginMethod] = useState<'manual' | 'refresh_token' | ''>(''); // Antigravity 登录方式
-  const [kiroLoginMethod, setKiroLoginMethod] = useState<'refresh_token' | ''>('');
+  const [kiroLoginMethod, setKiroLoginMethod] = useState<'oauth' | 'refresh_token' | ''>('');
   const [kiroAwsIdcMethod, setKiroAwsIdcMethod] = useState<
     'device_code' | 'manual_import' | ''
   >('');
@@ -64,6 +99,14 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
   const [callbackUrl, setCallbackUrl] = useState('');
   const [countdown, setCountdown] = useState(600); // Kiro授权倒计时（600秒）
   const [isWaitingAuth, setIsWaitingAuth] = useState(false); // Kiro是否等待授权中
+  const [currentOrigin, setCurrentOrigin] = useState('');
+  const [antiHookOs, setAntiHookOs] = useState<AntiHookOS | ''>('');
+  const [antiHookArch, setAntiHookArch] = useState<AntiHookArch | ''>('');
+  const [showAntiHookDownloads, setShowAntiHookDownloads] = useState(false);
+
+  const [kiroBatchJson, setKiroBatchJson] = useState('');
+  const [kiroBatchResults, setKiroBatchResults] = useState<KiroBatchImportResult[]>([]);
+  const [isKiroBatchImporting, setIsKiroBatchImporting] = useState(false);
 
   const [kiroAwsIdcStatus, setKiroAwsIdcStatus] = useState<
     'idle' | 'pending' | 'completed' | 'error' | 'expired'
@@ -77,6 +120,17 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
   const [kiroAwsIdcMessage, setKiroAwsIdcMessage] = useState('');
   const [kiroAwsIdcResult, setKiroAwsIdcResult] = useState<any>(null);
 
+  const recommendedAntiHook =
+    antiHookOs !== '' && antiHookArch !== ''
+      ? (ANTIHOOK_DOWNLOAD_OPTIONS.find(
+          (item) => item.os === antiHookOs && item.arch === antiHookArch
+        ) ?? null)
+      : null;
+
+  const recommendedAntiHookUrl = recommendedAntiHook
+    ? `/antihook/${getAntiHookAssetName(recommendedAntiHook.os, recommendedAntiHook.arch)}`
+    : '';
+
   // 清理定时器
   useEffect(() => {
     return () => {
@@ -87,6 +141,41 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
         clearInterval(pollTimerRef.current);
       }
     };
+  }, []);
+
+  // 检测浏览器环境，用于推荐 AntiHook 下载版本
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    setCurrentOrigin(window.location.origin);
+
+    const ua = window.navigator.userAgent || '';
+
+    let os: AntiHookOS | '' = '';
+    if (/windows/i.test(ua)) os = 'windows';
+    else if (/macintosh|mac os/i.test(ua)) os = 'darwin';
+    else if (/linux/i.test(ua)) os = 'linux';
+
+    let arch: AntiHookArch | '' = '';
+    if (/arm64|aarch64/i.test(ua)) arch = 'arm64';
+    else if (/x86_64|amd64|win64|x64/i.test(ua)) arch = 'amd64';
+
+    setAntiHookOs(os);
+    setAntiHookArch(arch);
+
+    const uaData: any = (window.navigator as any).userAgentData;
+    if (uaData?.getHighEntropyValues) {
+      uaData
+        .getHighEntropyValues(['architecture'])
+        .then((values: any) => {
+          const value = String(values?.architecture || '').toLowerCase();
+          if (value.includes('arm')) setAntiHookArch('arm64');
+          if (value.includes('x86')) setAntiHookArch('amd64');
+        })
+        .catch(() => {});
+    }
+
+    if (!os || !arch) setShowAntiHookDownloads(true);
   }, []);
 
   const handleContinue = async () => {
@@ -117,12 +206,12 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
       }
 
       if (kiroProvider === 'social') {
-        setKiroLoginMethod('refresh_token');
+        setKiroLoginMethod('oauth');
         setOauthUrl('');
         setOauthState('');
         setCountdown(600);
         setIsWaitingAuth(false);
-        setStep('authorize');
+        setStep('method');
         return;
       }
 
@@ -145,6 +234,25 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
 
       setStep('method');
     } else if (step === 'method') {
+      if (platform === 'kiro') {
+        if (!kiroLoginMethod) {
+          toasterRef.current?.show({
+            title: '选择方式',
+            message: '请选择添加方式',
+            variant: 'warning',
+            position: 'top-right',
+          });
+          return;
+        }
+
+        setOauthUrl('');
+        setOauthState('');
+        setCountdown(600);
+        setIsWaitingAuth(false);
+        setStep('authorize');
+        return;
+      }
+
       if (platform === 'qwen') {
         if (!qwenLoginMethod) {
           toasterRef.current?.show({
@@ -353,6 +461,87 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
     }, intervalMs);
   };
 
+  // 轮询 Kiro OAuth（Social）登录状态
+  const startPollingKiroOAuthStatus = (state: string) => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+    }
+
+    pollTimerRef.current = setInterval(async () => {
+      try {
+        const result = await pollKiroOAuthStatus(state);
+
+        if (result.status === 'pending') return;
+
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+
+        setIsWaitingAuth(false);
+
+        if (result.status === 'completed') {
+          toasterRef.current?.show({
+            title: '授权成功',
+            message: 'Kiro 账号已成功添加',
+            variant: 'success',
+            position: 'top-right',
+          });
+
+          window.dispatchEvent(new CustomEvent('accountAdded'));
+          onOpenChange(false);
+          resetState();
+          onSuccess?.();
+          return;
+        }
+
+        if (result.status === 'expired') {
+          toasterRef.current?.show({
+            title: '授权已过期',
+            message: result.message || '请返回重新开始',
+            variant: 'warning',
+            position: 'top-right',
+          });
+          return;
+        }
+
+        toasterRef.current?.show({
+          title: '授权失败',
+          message:
+            result.message ||
+            (result as any).error ||
+            '授权失败，请重试',
+          variant: 'error',
+          position: 'top-right',
+        });
+      } catch (error) {
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+
+        setIsWaitingAuth(false);
+
+        const message = error instanceof Error ? error.message : '轮询授权状态失败';
+        const isExpired = /过期|expired|state/i.test(message);
+        toasterRef.current?.show({
+          title: isExpired ? '授权已过期' : '授权失败',
+          message,
+          variant: isExpired ? 'warning' : 'error',
+          position: 'top-right',
+        });
+      }
+    }, 3000);
+  };
+
   // 轮询 Qwen OAuth（Device Flow）登录状态
   const startPollingQwenOAuthStatus = (state: string) => {
     if (pollTimerRef.current) {
@@ -544,6 +733,167 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
     }
   };
 
+  const handleBatchImportKiroAccounts = async () => {
+    const raw = kiroBatchJson.replace(/^\uFEFF/, '').trim();
+    if (!raw) {
+      toasterRef.current?.show({
+        title: '输入错误',
+        message: '请粘贴批量 JSON 内容',
+        variant: 'warning',
+        position: 'top-right',
+      });
+      return;
+    }
+
+    if (isKiroBatchImporting) return;
+
+    kiroBatchCancelRef.current = false;
+
+    let parsed: unknown;
+    const normalized = raw.replace(/，/g, ',');
+    try {
+      parsed = JSON.parse(normalized);
+    } catch {
+      try {
+        parsed = JSON.parse(`[${normalized}]`);
+      } catch {
+        toasterRef.current?.show({
+          title: 'JSON 格式错误',
+          message: '请输入有效 JSON（支持 JSON 数组，或多个 JSON 对象用逗号分隔）',
+          variant: 'warning',
+          position: 'top-right',
+        });
+        return;
+      }
+    }
+
+    const items: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
+    if (items.length === 0) {
+      toasterRef.current?.show({
+        title: '没有可导入项',
+        message: 'JSON 为空，请检查输入内容',
+        variant: 'warning',
+        position: 'top-right',
+      });
+      return;
+    }
+
+    const extracted: Array<{ token: string; error?: string }> = items.map((item) => {
+      if (typeof item === 'string' && item.trim()) return { token: item.trim() };
+
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return { token: '', error: '只支持对象或字符串' };
+      }
+
+      const obj = item as Record<string, unknown>;
+      const direct =
+        (obj.RT ?? obj.rt ?? obj.refresh_token ?? obj.refreshToken ?? obj.RefreshToken) as unknown;
+
+      const tokenCandidate = (() => {
+        if (typeof direct === 'string' && direct.trim()) return direct.trim();
+
+        const values = Object.values(obj);
+        let longest = '';
+        for (const v of values) {
+          if (typeof v !== 'string') continue;
+          const trimmed = v.trim();
+          if (!trimmed) continue;
+          if (trimmed.length > longest.length) longest = trimmed;
+        }
+        return longest;
+      })();
+
+      if (typeof tokenCandidate !== 'string' || !tokenCandidate.trim()) {
+        return { token: '', error: '找不到 RefreshToken（对象里必须至少有一个字符串值）' };
+      }
+
+      return { token: tokenCandidate.trim() };
+    });
+
+    setKiroBatchResults(
+      extracted.map((entry, idx) => ({
+        index: idx + 1,
+        status: entry.token ? 'pending' : 'error',
+        message: entry.token ? '等待导入' : entry.error || '解析失败',
+      }))
+    );
+
+    setIsKiroBatchImporting(true);
+
+    let successCount = 0;
+    let failedCount = 0;
+
+    const updateResult = (index: number, patch: Partial<KiroBatchImportResult>) => {
+      setKiroBatchResults((prev) =>
+        prev.map((r) => (r.index === index ? { ...r, ...patch } : r))
+      );
+    };
+
+    for (let idx = 0; idx < extracted.length; idx++) {
+      if (kiroBatchCancelRef.current) break;
+
+      const item = extracted[idx];
+      const index = idx + 1;
+
+      if (!item.token) {
+        failedCount++;
+        updateResult(index, { status: 'error' });
+        continue;
+      }
+
+      updateResult(index, { status: 'pending', message: '导入中...' });
+
+      try {
+        const account = await createKiroAccount({
+          refresh_token: item.token,
+          auth_method: 'Social',
+          is_shared: 0,
+        });
+
+        let email = account.email ?? undefined;
+        let available: number | undefined;
+
+        try {
+          const balance = await getKiroAccountBalance(account.account_id);
+          if (typeof balance.email === 'string' && balance.email.trim()) {
+            email = balance.email.trim();
+          }
+          if (typeof balance.balance?.available === 'number') {
+            available = balance.balance.available;
+          }
+        } catch {}
+
+        successCount++;
+        updateResult(index, { status: 'success', email, available, message: '成功' });
+      } catch (err) {
+        failedCount++;
+        updateResult(index, {
+          status: 'error',
+          message: err instanceof Error ? err.message : '导入失败',
+        });
+      }
+    }
+
+    setIsKiroBatchImporting(false);
+
+    if (kiroBatchCancelRef.current) return;
+
+    if (successCount > 0) {
+      window.dispatchEvent(new CustomEvent('accountAdded'));
+      onSuccess?.();
+    }
+
+    const variant =
+      successCount === 0 ? 'error' : failedCount > 0 ? 'warning' : 'success';
+
+    toasterRef.current?.show({
+      title: '批量导入完成',
+      message: `成功 ${successCount}，失败 ${failedCount}`,
+      variant,
+      position: 'top-right',
+    });
+  };
+
   const handleImportKiroAwsIdcAccount = async () => {
     const accountName = kiroImportAccountName.trim();
     const refreshToken = kiroImportRefreshToken.trim();
@@ -593,6 +943,29 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
       toasterRef.current?.show({
         title: '导入失败',
         message: err instanceof Error ? err.message : '导入 AWS-IMA（Builder ID）账号失败',
+        variant: 'error',
+        position: 'top-right',
+      });
+      throw err;
+    }
+  };
+
+  const handleStartKiroOAuth = async (provider: 'Google' | 'Github') => {
+    try {
+      const result = await getKiroOAuthAuthorizeUrl(provider, 0);
+
+      setOauthUrl(result.data.auth_url);
+      setOauthState(result.data.state);
+      setCountdown(result.data.expires_in);
+      setIsWaitingAuth(true);
+      startCountdownTimer(result.data.expires_in);
+      startPollingKiroOAuthStatus(result.data.state);
+
+      window.open(result.data.auth_url, '_blank', 'width=600,height=700');
+    } catch (err) {
+      toasterRef.current?.show({
+        title: '获取授权链接失败',
+        message: err instanceof Error ? err.message : '获取 Kiro 授权链接失败',
         variant: 'error',
         position: 'top-right',
       });
@@ -811,6 +1184,8 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
       pollTimerRef.current = null;
     }
 
+    kiroBatchCancelRef.current = true;
+
     setStep('platform');
     setPlatform('');
     setKiroProvider('');
@@ -822,6 +1197,9 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
     setKiroImportClientId('');
     setKiroImportClientSecret('');
     setKiroImportAccountName('');
+    setKiroBatchJson('');
+    setKiroBatchResults([]);
+    setIsKiroBatchImporting(false);
     setAntigravityImportRefreshToken('');
     setQwenCredentialJson('');
     setQwenAccountName('');
@@ -853,6 +1231,8 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
       pollTimerRef.current = null;
     }
 
+    kiroBatchCancelRef.current = true;
+
     onOpenChange(false);
     // 延迟重置状态，等待动画完成
     setTimeout(resetState, 300);
@@ -872,6 +1252,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
             clearInterval(pollTimerRef.current);
             pollTimerRef.current = null;
           }
+          kiroBatchCancelRef.current = true;
           // 延迟重置状态
           setTimeout(resetState, 300);
         }
@@ -1019,15 +1400,15 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                     checked={kiroProvider === 'social'}
                     onChange={() => {
                       setKiroProvider('social');
-                      setKiroLoginMethod('refresh_token');
+                      setKiroLoginMethod('oauth');
                       setKiroAwsIdcMethod('');
                     }}
                     className="w-4 h-4 mt-1"
                   />
                   <div className="flex-1">
-                    <h3 className="font-semibold">Kiro OAuth（Refresh Token 导入）</h3>
+                    <h3 className="font-semibold">Kiro OAuth（社交登录）</h3>
                     <p className="text-sm text-muted-foreground mt-1">
-                      通过 Refresh Token 导入 Social 登录方式获取的账号
+                      支持一键登录（OAuth）或 Refresh Token 导入
                     </p>
                   </div>
                 </label>
@@ -1111,6 +1492,61 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                     <h3 className="font-semibold">凭证 JSON 导入</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       适合你已经从 QwenCli 导出了 credential_json
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* 选择添加方式 (Kiro Social) */}
+          {step === 'method' && platform === 'kiro' && kiroProvider === 'social' && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                选择添加方式
+              </p>
+
+              <div className="space-y-3">
+                <label
+                  className={cn(
+                    "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
+                    kiroLoginMethod === 'oauth' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="kiroLoginMethod"
+                    value="oauth"
+                    checked={kiroLoginMethod === 'oauth'}
+                    onChange={() => setKiroLoginMethod('oauth')}
+                    className="w-4 h-4 mt-1"
+                  />
+                  <div className="flex-1">
+                    <h3 className="font-semibold">一键登录（OAuth，推荐）</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      需要安装并配置 AntiHook 来接管 kiro:// 回调
+                    </p>
+                  </div>
+                </label>
+
+                <label
+                  className={cn(
+                    "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
+                    kiroLoginMethod === 'refresh_token' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="kiroLoginMethod"
+                    value="refresh_token"
+                    checked={kiroLoginMethod === 'refresh_token'}
+                    onChange={() => setKiroLoginMethod('refresh_token')}
+                    className="w-4 h-4 mt-1"
+                  />
+                  <div className="flex-1">
+                    <h3 className="font-semibold">Refresh Token 导入</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      适合你已经能拿到 RefreshToken 的场景
                     </p>
                   </div>
                 </label>
@@ -1298,7 +1734,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                       placeholder="在此粘贴 refresh_token"
                       value={antigravityImportRefreshToken}
                       onChange={(e) => setAntigravityImportRefreshToken(e.target.value)}
-                      className="font-mono text-sm min-h-[140px]"
+                      className="font-mono text-sm [field-sizing:fixed] min-h-[96px] max-h-[180px] overflow-y-auto"
                     />
                   </div>
                 </>
@@ -1525,8 +1961,176 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                       placeholder="在此粘贴 refresh_token"
                       value={kiroImportRefreshToken}
                       onChange={(e) => setKiroImportRefreshToken(e.target.value)}
-                      className="font-mono text-sm min-h-[110px]"
+                      className="font-mono text-sm [field-sizing:fixed] min-h-[80px] max-h-[160px] overflow-y-auto"
                     />
+                  </div>
+                </>
+              ) : platform === 'kiro' && kiroProvider === 'social' && kiroLoginMethod === 'oauth' ? (
+                <>
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">OAuth 授权</Label>
+                    <p className="text-sm text-muted-foreground">
+                      点击生成并打开授权页面后完成登录；浏览器会跳转到 kiro:// 回调，由 AntiHook 转发到服务端并自动落库。
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                      <strong>提示</strong>
+                      <br />
+                      未安装 AntiHook 时，kiro:// 回调不会被转发，状态会一直停留在等待中。
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-muted/30 border border-border rounded-lg space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">AntiHook 配置</p>
+                      <p className="text-xs text-muted-foreground">
+                        AntiHook 首次运行会提示配置 <span className="font-mono">KIRO_SERVER_URL</span>（建议填当前站点地址）。
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Input
+                        value={currentOrigin}
+                        readOnly
+                        className="font-mono text-xs h-10"
+                        placeholder="当前站点地址"
+                      />
+                      <Button
+                        onClick={() => {
+                          if (!currentOrigin) return;
+                          navigator.clipboard.writeText(currentOrigin);
+                          toasterRef.current?.show({
+                            title: '复制成功',
+                            message: 'KIRO_SERVER_URL 已复制到剪贴板',
+                            variant: 'success',
+                            position: 'top-right',
+                          });
+                        }}
+                        variant="outline"
+                        size="lg"
+                        disabled={!currentOrigin}
+                      >
+                        <IconCopy className="size-4 mr-2" />
+                        复制
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">下载 AntiHook</p>
+
+                      {recommendedAntiHookUrl ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button asChild size="lg" className="flex-1 cursor-pointer min-w-[160px]">
+                            <a href={recommendedAntiHookUrl} download>
+                              下载（推荐：{recommendedAntiHook?.label}）
+                            </a>
+                          </Button>
+
+                          <Button
+                            onClick={() => setShowAntiHookDownloads((v) => !v)}
+                            variant="outline"
+                            size="lg"
+                          >
+                            {showAntiHookDownloads ? '收起版本列表' : '选择其他版本'}
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button onClick={() => setShowAntiHookDownloads(true)} variant="outline" size="lg">
+                          选择版本下载
+                        </Button>
+                      )}
+
+                      {showAntiHookDownloads && (
+                        <div className="grid grid-cols-2 gap-2">
+                          {ANTIHOOK_DOWNLOAD_OPTIONS.map((item) => {
+                            const href = `/antihook/${getAntiHookAssetName(item.os, item.arch)}`;
+                            const isRecommended =
+                              recommendedAntiHook?.os === item.os && recommendedAntiHook?.arch === item.arch;
+
+                            return (
+                              <Button
+                                key={`${item.os}-${item.arch}`}
+                                asChild
+                                variant={isRecommended ? 'secondary' : 'outline'}
+                                size="lg"
+                              >
+                                <a href={href} download>
+                                  {item.label}
+                                </a>
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">授权操作</Label>
+
+                    <div className="flex flex-wrap gap-2">
+                      <StatefulButton
+                        onClick={() => handleStartKiroOAuth('Google')}
+                        disabled={isWaitingAuth && countdown > 0}
+                        className="flex-1 cursor-pointer min-w-[140px]"
+                      >
+                        {oauthUrl ? '重新生成（Google）' : '生成并打开（Google）'}
+                      </StatefulButton>
+
+                      <StatefulButton
+                        onClick={() => handleStartKiroOAuth('Github')}
+                        disabled={isWaitingAuth && countdown > 0}
+                        className="flex-1 cursor-pointer min-w-[140px]"
+                      >
+                        {oauthUrl ? '重新生成（GitHub）' : '生成并打开（GitHub）'}
+                      </StatefulButton>
+
+                      <Button
+                        onClick={handleOpenOAuthUrl}
+                        variant="outline"
+                        size="lg"
+                        disabled={!oauthUrl}
+                      >
+                        <IconExternalLink className="size-4 mr-2" />
+                        打开
+                      </Button>
+
+                      <Button
+                        onClick={() => {
+                          if (oauthUrl) {
+                            navigator.clipboard.writeText(oauthUrl);
+                            toasterRef.current?.show({
+                              title: '复制成功',
+                              message: '授权链接已复制到剪贴板',
+                              variant: 'success',
+                              position: 'top-right',
+                            });
+                          }
+                        }}
+                        variant="outline"
+                        size="lg"
+                        disabled={!oauthUrl}
+                      >
+                        <IconCopy className="size-4 mr-2" />
+                        复制
+                      </Button>
+                    </div>
+
+                    {oauthUrl && (
+                      <Input
+                        value={oauthUrl}
+                        readOnly
+                        className="font-mono text-xs h-10"
+                      />
+                    )}
+
+                    {isWaitingAuth && countdown > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        正在等待授权... 剩余 {formatCountdown(countdown)}
+                      </p>
+                    )}
                   </div>
                 </>
               ) : platform === 'kiro' && kiroProvider === 'social' && kiroLoginMethod === 'refresh_token' ? (
@@ -1598,9 +2202,83 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                       placeholder="在此粘贴 refresh_token"
                       value={kiroImportRefreshToken}
                       onChange={(e) => setKiroImportRefreshToken(e.target.value)}
-                      className="font-mono text-sm min-h-[110px]"
+                      className="font-mono text-sm [field-sizing:fixed] min-h-[80px] max-h-[160px] overflow-y-auto"
                     />
                   </div>
+
+                  <div className="border-t pt-6 space-y-3">
+                    <Label className="text-base font-semibold">批量导入（JSON）</Label>
+                    <p className="text-sm text-muted-foreground">
+                      支持 JSON 数组，或多个 JSON 对象用逗号分隔；每一项里随便一个字段的 value 是 RefreshToken 即可（导入顺序按 JSON 顺序）。
+                    </p>
+
+                    <Textarea
+                      id="kiro-refresh-token-batch"
+                      placeholder='示例：[{\"RT\":\"xxxx\"},{\"随便写\":\"yyyy\"}]'
+                      value={kiroBatchJson}
+                      onChange={(e) => setKiroBatchJson(e.target.value)}
+                      className="font-mono text-sm [field-sizing:fixed] min-h-[140px] max-h-[260px] overflow-y-auto"
+                    />
+
+                    <Button
+                      onClick={handleBatchImportKiroAccounts}
+                      disabled={!kiroBatchJson.trim() || isKiroBatchImporting}
+                      className="w-full cursor-pointer"
+                    >
+                      {isKiroBatchImporting ? '批量导入中...' : '批量解析并导入'}
+                    </Button>
+                  </div>
+
+                  {kiroBatchResults.length > 0 && (
+                    <div className="space-y-3">
+                      <Label className="text-base font-semibold">导入清单</Label>
+                      <div className="space-y-2">
+                        {kiroBatchResults.map((r) => (
+                          <div
+                            key={r.index}
+                            className="flex items-start justify-between gap-3 rounded-lg border p-3"
+                          >
+                            <div className="min-w-0 flex-1 space-y-1">
+                              <p className="text-sm">
+                                <span className="font-mono text-xs text-muted-foreground mr-2">
+                                  #{r.index}
+                                </span>
+                                <span className={r.email ? '' : 'text-muted-foreground'}>
+                                  {r.email || '（未获取邮箱）'}
+                                </span>
+                              </p>
+                              {typeof r.available === 'number' && (
+                                <p className="text-xs text-muted-foreground">
+                                  余额（available）：<span className="font-mono">{r.available}</span>
+                                </p>
+                              )}
+                              {r.message && (
+                                <p className="text-xs text-muted-foreground">
+                                  {r.message}
+                                </p>
+                              )}
+                            </div>
+
+                            <Badge
+                              variant={
+                                r.status === 'success'
+                                  ? 'secondary'
+                                  : r.status === 'error'
+                                  ? 'destructive'
+                                  : 'outline'
+                              }
+                            >
+                              {r.status === 'success'
+                                ? '成功'
+                                : r.status === 'error'
+                                ? '失败'
+                                : '处理中'}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : platform === 'kiro' ? (
                 <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
