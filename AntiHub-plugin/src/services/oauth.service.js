@@ -470,8 +470,21 @@ class OAuthService {
       }
 
       // 获取project_id_0
-      if (!is_restricted && projectData.cloudaicompanionProject) {
-        project_id_0 = projectData.cloudaicompanionProject;
+      if (!is_restricted) {
+        project_id_0 = projectService.extractProjectId(projectData?.cloudaicompanionProject);
+
+        // loadCodeAssist 没返回 project_id 时，尝试 onboardUser 获取真实 project_id
+        if (!project_id_0) {
+          try {
+            const tierId = projectService.getDefaultTierId(projectData);
+            project_id_0 = await projectService.onboardUser(access_token, tierId);
+            if (project_id_0) {
+              logger.info(`onboardUser 获取到 project_id: cookie_id=${cookie_id}, project_id=${project_id_0}`);
+            }
+          } catch (error) {
+            logger.warn(`onboardUser 获取 project_id 失败: cookie_id=${cookie_id}, error=${error?.message || error}`);
+          }
+        }
       }
 
       // 检查是否允许登录：project_id_0为空 且 paid_tier为false 时阻止登录

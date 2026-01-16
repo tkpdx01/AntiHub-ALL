@@ -647,6 +647,17 @@ export async function getAntigravityAccountDetail(cookieId: string): Promise<Ant
   return result.data;
 }
 
+/**
+ * 刷新账号（强制刷新 access_token + 更新 project_id_0）
+ */
+export async function refreshAccount(cookieId: string): Promise<Account> {
+  const result = await fetchWithAuth<{ success: boolean; data: Account }>(
+    `${API_BASE_URL}/api/plugin-api/accounts/${cookieId}/refresh`,
+    { method: 'POST' }
+  );
+  return result.data;
+}
+
 export async function deleteAccount(cookieId: string): Promise<any> {
   const result = await fetchWithAuth<{ success: boolean; data: any }>(
     `${API_BASE_URL}/api/plugin-api/accounts/${cookieId}`,

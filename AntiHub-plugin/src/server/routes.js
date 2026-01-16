@@ -569,6 +569,75 @@ router.get('/api/accounts/:cookie_id', authenticateApiKey, async (req, res) => {
 });
 
 /**
+ * 手动刷新账号（强制刷新 access_token + 更新 project_id_0）
+ * POST /api/accounts/:cookie_id/refresh
+ */
+router.post('/api/accounts/:cookie_id/refresh', authenticateApiKey, async (req, res) => {
+  try {
+    const { cookie_id } = req.params;
+    const account = await accountService.getAccountByCookieId(cookie_id);
+
+    if (!account) {
+      return res.status(404).json({ error: '账号不存在' });
+    }
+
+    if (!req.isAdmin && account.user_id !== req.user.user_id) {
+      return res.status(403).json({ error: '无权访问此账号' });
+    }
+
+    if (!account.refresh_token) {
+      return res.status(400).json({ error: '账号缺少refresh_token，无法刷新' });
+    }
+
+    // 1) 强制刷新 access_token
+    let accessToken = account.access_token;
+    let expiresAt = account.expires_at;
+    try {
+      const tokenData = await oauthService.refreshAccessToken(account.refresh_token);
+      accessToken = tokenData.access_token;
+      expiresAt = Date.now() + (tokenData.expires_in * 1000);
+      await accountService.updateAccountToken(cookie_id, accessToken, expiresAt);
+    } catch (error) {
+      if (error?.isInvalidGrant) {
+        logger.error(`账号刷新token失败(invalid_grant)，标记需要重新登录: cookie_id=${cookie_id}`);
+        await accountService.markAccountNeedRefresh(cookie_id);
+        return res.status(400).json({ error: 'refresh_token无效或已失效，请重新授权后再导入' });
+      }
+      throw error;
+    }
+
+    // 2) 更新 project_id_0（必要时走 onboardUser）
+    const updated = await projectService.updateAccountProjectIds(cookie_id, accessToken);
+
+    // 隐藏敏感信息
+    const safeAccount = {
+      cookie_id,
+      user_id: account.user_id,
+      name: account.name,
+      is_shared: account.is_shared,
+      status: account.status,
+      need_refresh: account.need_refresh,
+      expires_at: expiresAt,
+      project_id_0: updated?.project_id_0 ?? account.project_id_0,
+      is_restricted: updated?.is_restricted ?? account.is_restricted,
+      paid_tier: updated?.paid_tier ?? account.paid_tier,
+      ineligible: updated?.ineligible ?? account.ineligible,
+      created_at: account.created_at,
+      updated_at: updated?.updated_at ?? account.updated_at,
+    };
+
+    res.json({
+      success: true,
+      message: '刷新成功',
+      data: safeAccount,
+    });
+  } catch (error) {
+    logger.error('刷新账号失败:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * 更新账号状态
  * PUT /api/accounts/:cookie_id/status
  * Body: { status }

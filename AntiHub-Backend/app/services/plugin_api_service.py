@@ -534,6 +534,14 @@ class PluginAPIService:
             method="GET",
             path=f"/api/accounts/{cookie_id}/detail",
         )
+
+    async def refresh_account(self, user_id: int, cookie_id: str) -> Dict[str, Any]:
+        """刷新账号（强制刷新 access_token + 更新 project_id_0）"""
+        return await self.proxy_request(
+            user_id=user_id,
+            method="POST",
+            path=f"/api/accounts/{cookie_id}/refresh",
+        )
     
     async def update_account_status(
         self,

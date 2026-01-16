@@ -3,40 +3,148 @@ import accountService from './account.service.js';
 import config from '../config/config.js';
 
 class ProjectService {
-  async loadCodeAssist(accessToken) {
-    try {
-      const requestHeaders = {
-        'Host': 'daily-cloudcode-pa.sandbox.googleapis.com',
-        'User-Agent': config.api.userAgent,
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'Accept-Encoding': 'gzip'
-      };
+  getApiEndpoints() {
+    const endpoints = Array.isArray(config?.api?.endpoints) ? config.api.endpoints : [];
+    if (endpoints.length > 0) {
+      return endpoints
+        .map((endpoint) => ({
+          baseUrl: endpoint?.baseUrl,
+          host: endpoint?.host,
+        }))
+        .filter((endpoint) => typeof endpoint.baseUrl === 'string' && endpoint.baseUrl && typeof endpoint.host === 'string' && endpoint.host);
+    }
 
-      const response = await fetch(
-        'https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:loadCodeAssist',
-        {
+    // fallback: keep behavior consistent with default config
+    return [
+      {
+        baseUrl: 'https://daily-cloudcode-pa.sandbox.googleapis.com',
+        host: 'daily-cloudcode-pa.sandbox.googleapis.com',
+      },
+    ];
+  }
+
+  buildRequestHeaders({ accessToken, host }) {
+    return {
+      Host: host,
+      'User-Agent': config.api.userAgent,
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'Accept-Encoding': 'gzip',
+    };
+  }
+
+  getCodeAssistMetadata() {
+    return {
+      ideType: 'ANTIGRAVITY',
+      platform: 'PLATFORM_UNSPECIFIED',
+      pluginType: 'GEMINI',
+    };
+  }
+
+  extractProjectId(value) {
+    if (!value) return '';
+
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+
+    if (typeof value === 'object') {
+      const id = value.id ?? value.projectId ?? value.project_id;
+      if (typeof id === 'string') return id.trim();
+    }
+
+    return '';
+  }
+
+  getDefaultTierId(loadCodeAssistResponse) {
+    const fallback = 'legacy-tier';
+    const tiers = loadCodeAssistResponse?.allowedTiers;
+    if (!Array.isArray(tiers)) return fallback;
+
+    const defaultTier = tiers.find((tier) => tier && typeof tier === 'object' && tier.isDefault);
+    const id = defaultTier?.id;
+    return typeof id === 'string' && id.trim() ? id.trim() : fallback;
+  }
+
+  async sleep(ms) {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async loadCodeAssist(accessToken) {
+    let lastError = null;
+
+    for (const endpoint of this.getApiEndpoints()) {
+      try {
+        const requestHeaders = this.buildRequestHeaders({ accessToken, host: endpoint.host });
+        const response = await fetch(`${endpoint.baseUrl}/v1internal:loadCodeAssist`, {
           method: 'POST',
           headers: requestHeaders,
-          body: JSON.stringify({
-            metadata: {
-              ideType: 'ANTIGRAVITY'
-            }
-          })
+          body: JSON.stringify({ metadata: this.getCodeAssistMetadata() }),
+        });
+
+        if (!response.ok) {
+          const responseText = await response.text();
+          throw new Error(`API请求失败 (${response.status}): ${responseText}`);
         }
-      );
 
-      if (!response.ok) {
-        const responseText = await response.text();
-        throw new Error(`API请求失败 (${response.status}): ${responseText}`);
+        return await response.json();
+      } catch (error) {
+        lastError = error;
+        logger.warn(`loadCodeAssist 失败，尝试下一个端点: host=${endpoint.host}, error=${error?.message || error}`);
       }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      logger.error('调用loadCodeAssist API失败:', error.message);
-      throw error;
     }
+
+    logger.error('调用loadCodeAssist API失败(所有端点):', lastError?.message || lastError);
+    throw lastError || new Error('调用loadCodeAssist API失败');
+  }
+
+  async onboardUser(accessToken, tierId = 'legacy-tier') {
+    const requestBody = {
+      tierId,
+      metadata: this.getCodeAssistMetadata(),
+    };
+
+    const maxAttempts = 5;
+    const retryDelayMs = 2000;
+    let lastError = null;
+
+    for (const endpoint of this.getApiEndpoints()) {
+      const requestHeaders = this.buildRequestHeaders({ accessToken, host: endpoint.host });
+      try {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          const response = await fetch(`${endpoint.baseUrl}/v1internal:onboardUser`, {
+            method: 'POST',
+            headers: requestHeaders,
+            body: JSON.stringify(requestBody),
+          });
+
+          if (!response.ok) {
+            const responseText = await response.text();
+            throw new Error(`onboardUser API请求失败 (${response.status}): ${responseText}`);
+          }
+
+          const data = await response.json();
+
+          if (!data?.done) {
+            logger.info(`onboardUser 未完成，等待重试: host=${endpoint.host}, attempt=${attempt}/${maxAttempts}`);
+            await this.sleep(retryDelayMs);
+            continue;
+          }
+
+          const fromResponse = this.extractProjectId(data?.response?.cloudaicompanionProject);
+          const fromTopLevel = this.extractProjectId(data?.cloudaicompanionProject);
+          const projectId = fromResponse || fromTopLevel;
+          if (projectId) return projectId;
+
+          throw new Error(`onboardUser 返回 done=true 但缺少 project_id: ${JSON.stringify(data).slice(0, 500)}`);
+        }
+      } catch (error) {
+        lastError = error;
+        logger.warn(`onboardUser 失败，尝试下一个端点: host=${endpoint.host}, error=${error?.message || error}`);
+      }
+    }
+
+    throw lastError || new Error('onboardUser 失败');
   }
 
   /**
@@ -77,8 +185,20 @@ class ProjectService {
         }
       }
       
-      // 只要有 cloudaicompanionProject，就填入 project_id_0
-      const project_id_0 = apiResponse.cloudaicompanionProject || '';
+      // 尝试从 loadCodeAssist 获取 project_id；拿不到则走 onboardUser 获取真实 project_id
+      let project_id_0 = '';
+      if (!is_restricted) {
+        project_id_0 = this.extractProjectId(apiResponse?.cloudaicompanionProject);
+
+        if (!project_id_0 && !ineligible) {
+          try {
+            const tierId = this.getDefaultTierId(apiResponse);
+            project_id_0 = await this.onboardUser(accessToken, tierId);
+          } catch (error) {
+            logger.warn(`onboardUser 获取 project_id 失败: cookie_id=${cookie_id}, error=${error?.message || error}`);
+          }
+        }
+      }
       
       // 判断是否为付费用户：paidTier.id 不包含 'free' 字符串则为付费用户
       // 如果没有paidTier，默认为false（免费用户）

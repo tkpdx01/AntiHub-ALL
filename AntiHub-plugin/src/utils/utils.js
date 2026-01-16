@@ -572,14 +572,10 @@ async function generateRequestBody(openaiMessages, modelName, parameters, openai
   // 消息转换
   const contents = openaiMessageToAntigravity(openaiMessages, false, baseModelName);
 
-  // 优先使用账号的 project_id_0，如果不存在则随机生成
-  let projectId = generateProjectId();
-  if (account) {
-    if (account.project_id_0 !== undefined && account.project_id_0 !== null) {
-      projectId = account.project_id_0;
-    } else {
-      logger.info(`账号没有配置 project_id，使用随机生成: ${projectId}`);
-    }
+  // 不再生成随机 project_id：project 必须来自真实账号（由调用方在发送前填入）
+  let projectId = '';
+  if (account && typeof account.project_id_0 === 'string') {
+    projectId = account.project_id_0.trim();
   }
 
   // 提取用户传入的 system 消息，合并为 systemInstruction
@@ -667,14 +663,10 @@ async function generateRequestBody(openaiMessages, modelName, parameters, openai
  * @returns {Object} 请求体
  */
 function generateImageRequestBody(prompt, modelName, imageConfig = {}, account = null, images = []) {
-  // 优先使用账号的 project_id_0，如果不存在则随机生成
-  let projectId = generateProjectId();
-  if (account) {
-    if (account.project_id_0 !== undefined && account.project_id_0 !== null) {
-      projectId = account.project_id_0;
-    } else {
-      logger.info(`图片生成账号没有配置 project_id，使用随机生成: ${projectId}`);
-    }
+  // 不再生成随机 project_id：project 必须来自真实账号（由调用方在发送前填入）
+  let projectId = '';
+  if (account && typeof account.project_id_0 === 'string') {
+    projectId = account.project_id_0.trim();
   }
 
   // 构建 parts 数组：文本 + 图片

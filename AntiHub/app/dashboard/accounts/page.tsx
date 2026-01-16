@@ -6,6 +6,7 @@ import {
   deleteAccount,
   updateAccountStatus,
   updateAccountName,
+  refreshAccount,
   getAccountQuotas,
   getAntigravityAccountDetail,
   updateQuotaStatus,
@@ -81,6 +82,7 @@ export default function AccountsPage() {
   const [qwenAccounts, setQwenAccounts] = useState<QwenAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshingCookieId, setRefreshingCookieId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'antigravity' | 'kiro' | 'qwen'>('antigravity');
 
   // 添加账号 Drawer 状态
@@ -241,6 +243,33 @@ export default function AccountsPage() {
         variant: 'error',
         position: 'top-right',
       });
+    }
+  };
+
+  const handleRefreshAntigravityAccount = async (account: Account) => {
+    setRefreshingCookieId(account.cookie_id);
+    try {
+      const updated = await refreshAccount(account.cookie_id);
+      setAccounts(accounts.map(a =>
+        a.cookie_id === account.cookie_id
+          ? { ...a, ...updated }
+          : a
+      ));
+      toasterRef.current?.show({
+        title: '刷新成功',
+        message: '已更新项目ID与Token',
+        variant: 'success',
+        position: 'top-right',
+      });
+    } catch (err) {
+      toasterRef.current?.show({
+        title: '刷新失败',
+        message: err instanceof Error ? err.message : '刷新账号失败',
+        variant: 'error',
+        position: 'top-right',
+      });
+    } finally {
+      setRefreshingCookieId(null);
     }
   };
 
@@ -806,6 +835,7 @@ export default function AccountsPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="min-w-[200px]">账号 ID</TableHead>
+                          <TableHead className="min-w-[220px]">Project ID</TableHead>
                           <TableHead className="min-w-[120px]">账号名称</TableHead>
                           <TableHead className="min-w-[80px]">状态</TableHead>
                           <TableHead className="min-w-[100px]">添加时间</TableHead>
@@ -819,6 +849,11 @@ export default function AccountsPage() {
                             <TableCell className="font-mono text-sm">
                               <div className="max-w-[200px] truncate" title={account.cookie_id}>
                                 {account.cookie_id}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">
+                              <div className="max-w-[220px] truncate" title={account.project_id_0 || ''}>
+                                {account.project_id_0 || '-'}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -876,6 +911,13 @@ export default function AccountsPage() {
                                    <DropdownMenuItem onClick={() => handleViewQuotas(account)}>
                                     <IconChartBar className="size-4 mr-2" />
                                     查看配额
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleRefreshAntigravityAccount(account)}
+                                    disabled={refreshingCookieId === account.cookie_id}
+                                  >
+                                    <IconRefresh className="size-4 mr-2" />
+                                    {refreshingCookieId === account.cookie_id ? '刷新中...' : '刷新项目ID'}
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => handleRenameAntigravity(account)}>
                                     <IconEdit className="size-4 mr-2" />
@@ -1382,6 +1424,12 @@ export default function AccountsPage() {
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">邮箱</Label>
                       <p className="text-sm break-all">{antigravityDetail.email || '未提供邮箱'}</p>
+                    </div>
+                    <div className="space-y-1 col-span-2">
+                      <Label className="text-xs text-muted-foreground">Project ID</Label>
+                      <p className="text-sm font-mono break-all">
+                        {accounts.find(a => a.cookie_id === antigravityDetail.cookie_id)?.project_id_0 || '未获取'}
+                      </p>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">账号名称</Label>

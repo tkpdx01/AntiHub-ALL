@@ -261,6 +261,44 @@ async def get_account_detail(
         )
 
 
+@router.post(
+    "/accounts/{cookie_id}/refresh",
+    summary="刷新账号",
+    description="强制刷新 access_token 并更新 project_id_0（必要时自动 onboardUser）"
+)
+async def refresh_account(
+    cookie_id: str,
+    current_user: User = Depends(get_current_user),
+    service: PluginAPIService = Depends(get_plugin_api_service)
+):
+    """刷新账号（Token + Project ID）"""
+    try:
+        result = await service.refresh_account(current_user.id, cookie_id)
+        return result
+    except httpx.HTTPStatusError as e:
+        error_data = getattr(e, 'response_data', {"detail": str(e)})
+        if isinstance(error_data, dict) and 'detail' in error_data:
+            detail = error_data['detail']
+        elif isinstance(error_data, dict) and 'error' in error_data:
+            detail = error_data['error']
+        else:
+            detail = error_data
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=detail
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="刷新账号失败"
+        )
+
+
 @router.put(
     "/accounts/{cookie_id}/status",
     summary="更新账号状态",

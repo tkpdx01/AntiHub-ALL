@@ -3,6 +3,7 @@ import logger from '../utils/logger.js';
 import accountService from '../services/account.service.js';
 import quotaService from '../services/quota.service.js';
 import oauthService from '../services/oauth.service.js';
+import projectService from '../services/project.service.js';
 
 /**
  * 自定义API错误类，包含HTTP状态码
@@ -22,6 +23,34 @@ class ApiError extends Error {
  */
 class MultiAccountClient {
   constructor() {
+  }
+
+  normalizeProjectId(projectId) {
+    if (typeof projectId !== 'string') return '';
+    return projectId.trim();
+  }
+
+  async ensureAccountProjectId(account) {
+    const existing = this.normalizeProjectId(account?.project_id_0);
+    if (existing) {
+      account.project_id_0 = existing;
+      return existing;
+    }
+
+    logger.warn(`[project_id] 缺失，尝试刷新: cookie_id=${account?.cookie_id}`);
+
+    try {
+      const updated = await projectService.updateAccountProjectIds(account.cookie_id, account.access_token);
+      const refreshed = this.normalizeProjectId(updated?.project_id_0);
+      if (refreshed) {
+        account.project_id_0 = refreshed;
+        return refreshed;
+      }
+    } catch (error) {
+      logger.warn(`[project_id] 刷新失败: cookie_id=${account?.cookie_id}, error=${error?.message || error}`);
+    }
+
+    return '';
   }
 
   /**
@@ -174,7 +203,7 @@ class MultiAccountClient {
    * @param {number} endpointIndex - 当前使用的API端点索引（用于403重试）
    * @param {string|null} firstError403Type - 第一次403错误的类型（用于决定是否禁用账号）
    */
-  async generateResponse(requestBody, callback, user_id, model_name, user, account = null, excludeCookieIds = [], retryCount = 0, endpointIndex = 0, firstError403Type = null) {
+  async generateResponse(requestBody, callback, user_id, model_name, user, account = null, excludeCookieIds = [], retryCount = 0, endpointIndex = 0, firstError403Type = null, projectRetryCount = 0) {
     // 如果没有提供 account，则获取一个
     if (!account) {
       account = await this.getAvailableAccount(user_id, model_name, user, excludeCookieIds);
@@ -208,10 +237,22 @@ class MultiAccountClient {
       logger.warn('获取缓存配额失败:', error.message);
     }
     
-    // 使用账号的 project_id_0
-    if (account.project_id_0) {
-      requestBody.project = account.project_id_0;
+    // 必须使用真实 project_id_0（缺失/过期时自动刷新一次）
+    const projectId = await this.ensureAccountProjectId(account);
+    if (!projectId) {
+      logger.warn(`[project_id] 仍然为空，禁用账号并换号重试: cookie_id=${account.cookie_id}`);
+      await accountService.updateAccountStatus(account.cookie_id, 0);
+
+      const newExcludeList = [...excludeCookieIds, account.cookie_id];
+      try {
+        const newAccount = await this.getAvailableAccount(user_id, model_name, user, newExcludeList);
+        return await this.generateResponse(requestBody, callback, user_id, model_name, user, newAccount, newExcludeList, retryCount, endpointIndex, firstError403Type, projectRetryCount);
+      } catch (retryError) {
+        callback({ type: 'error', content: 'RESOURCE_PROJECT_INVALID' });
+        throw new ApiError('RESOURCE_PROJECT_INVALID', 400, 'RESOURCE_PROJECT_INVALID');
+      }
     }
+    requestBody.project = projectId;
     
     // 获取当前端点配置
     const endpoint = getApiEndpoint(endpointIndex);
@@ -266,7 +307,7 @@ class MultiAccountClient {
           if (nextEndpointIndex < totalEndpoints) {
             // 还有其他端点可以尝试
             logger.warn(`[403错误] 端点[${endpointIndex}]返回403，尝试切换到端点[${nextEndpointIndex}]: cookie_id=${account.cookie_id}`);
-            return await this.generateResponse(requestBody, callback, user_id, model_name, user, account, excludeCookieIds, retryCount, nextEndpointIndex, currentFirstError403Type);
+            return await this.generateResponse(requestBody, callback, user_id, model_name, user, account, excludeCookieIds, retryCount, nextEndpointIndex, currentFirstError403Type, projectRetryCount);
           } else {
             // 所有端点都返回403
             // 只有当第一次错误不是 PERMISSION_DENIED 时才禁用账号
@@ -295,13 +336,8 @@ class MultiAccountClient {
               const newAccount = await this.getAvailableAccount(user_id, model_name, user, newExcludeList);
               logger.info(`已获取新账号，重试请求: new_cookie_id=${newAccount.cookie_id}`);
               
-              // 更新 requestBody 中的 project
-              if (newAccount.project_id_0) {
-                requestBody.project = newAccount.project_id_0;
-              }
-              
               // 递归调用，使用新账号重试
-              return await this.generateResponse(requestBody, callback, user_id, model_name, user, newAccount, newExcludeList);
+              return await this.generateResponse(requestBody, callback, user_id, model_name, user, newAccount, newExcludeList, retryCount, endpointIndex, firstError403Type, projectRetryCount);
             } catch (retryError) {
               // 如果没有更多可用账号，返回配额耗尽错误
               logger.error(`所有账号配额已耗尽，无法重试: ${retryError.message}`);
@@ -315,8 +351,17 @@ class MultiAccountClient {
             callback({ type: 'error', content: 'IMAGE_INPUT_EXCEEDED_MAXIMUM_5_MB' });
             throw new ApiError('IMAGE_INPUT_EXCEEDED_MAXIMUM_5_MB', 400, 'IMAGE_INPUT_EXCEEDED_MAXIMUM_5_MB');
           }
-          // 检查是否是 RESOURCE_PROJECT_INVALID 错误，禁用账号并换号重试
+          // 检查是否是 RESOURCE_PROJECT_INVALID 错误：先刷新 project_id 重试一次，再决定是否禁用换号
           if (responseText.includes('RESOURCE_PROJECT_INVALID')) {
+            if (projectRetryCount < 1) {
+              logger.warn(`[400错误] RESOURCE_PROJECT_INVALID，尝试刷新 project_id 后重试: cookie_id=${account.cookie_id}`);
+              const refreshedProjectId = await this.ensureAccountProjectId(account);
+              if (refreshedProjectId) {
+                requestBody.project = refreshedProjectId;
+                return await this.generateResponse(requestBody, callback, user_id, model_name, user, account, excludeCookieIds, retryCount, endpointIndex, firstError403Type, projectRetryCount + 1);
+              }
+            }
+
             logger.warn(`[400错误] RESOURCE_PROJECT_INVALID，禁用账号并尝试更换账号重试: cookie_id=${account.cookie_id}`);
             await accountService.updateAccountStatus(account.cookie_id, 0);
             
@@ -327,14 +372,9 @@ class MultiAccountClient {
               // 尝试获取新账号并重试
               const newAccount = await this.getAvailableAccount(user_id, model_name, user, newExcludeList);
               logger.info(`已获取新账号，重试请求: new_cookie_id=${newAccount.cookie_id}`);
-              
-              // 更新 requestBody 中的 project
-              if (newAccount.project_id_0) {
-                requestBody.project = newAccount.project_id_0;
-              }
-              
+
               // 递归调用，使用新账号重试
-              return await this.generateResponse(requestBody, callback, user_id, model_name, user, newAccount, newExcludeList);
+              return await this.generateResponse(requestBody, callback, user_id, model_name, user, newAccount, newExcludeList, retryCount, endpointIndex, firstError403Type, projectRetryCount);
             } catch (retryError) {
               // 如果没有更多可用账号，返回错误
               logger.error(`所有账号都不可用，无法重试: ${retryError.message}`);
@@ -374,7 +414,8 @@ class MultiAccountClient {
               excludeCookieIds,
               retryCount,
               nextEndpointIndex,
-              firstError403Type
+              firstError403Type,
+              projectRetryCount
             );
           }
         }
@@ -405,7 +446,7 @@ class MultiAccountClient {
             }
             
             // 递归调用，使用新账号重试，增加重试计数
-            return await this.generateResponse(requestBody, callback, user_id, model_name, user, newAccount, newExcludeList, retryCount + 1);
+            return await this.generateResponse(requestBody, callback, user_id, model_name, user, newAccount, newExcludeList, retryCount + 1, endpointIndex, firstError403Type, projectRetryCount);
           } catch (retryError) {
             // 如果没有更多可用账号，返回配额耗尽错误
             logger.error(`所有账号配额已耗尽，无法重试: ${retryError.message}`);
@@ -717,7 +758,17 @@ class MultiAccountClient {
       
       // 使用 project_id_0 获取配额
       try {
-        const pid0 = account.project_id_0 || '';
+        let pid0 = this.normalizeProjectId(account.project_id_0);
+        if (!pid0) {
+          // 尝试自动刷新一次 project_id（避免空/随机 project 导致配额刷新失败）
+          const refreshed = await this.ensureAccountProjectId(account);
+          pid0 = refreshed;
+        }
+
+        if (!pid0) {
+          logger.warn(`[配额刷新] project_id_0 为空，跳过刷新: cookie_id=${cookie_id}`);
+          return;
+        }
         const response0 = await fetch(modelsUrl, {
           method: 'POST',
           headers: requestHeaders,
@@ -776,7 +827,7 @@ class MultiAccountClient {
    * @param {string|null} firstError403Type - 第一次403错误的类型（用于决定是否禁用账号）
    * @returns {Promise<Object>} 图片生成响应
    */
-  async generateImage(requestBody, user_id, model_name, user, account = null, excludeCookieIds = [], retryCount = 0, endpointIndex = 0, firstError403Type = null) {
+  async generateImage(requestBody, user_id, model_name, user, account = null, excludeCookieIds = [], retryCount = 0, endpointIndex = 0, firstError403Type = null, projectRetryCount = 0) {
     // 如果没有提供 account，则获取一个
     if (!account) {
       account = await this.getAvailableAccount(user_id, model_name, user, excludeCookieIds);
@@ -792,10 +843,21 @@ class MultiAccountClient {
       logger.warn('获取缓存配额失败:', error.message);
     }
     
-    // 使用账号的 project_id_0
-    if (account.project_id_0) {
-      requestBody.project = account.project_id_0;
+    // 必须使用真实 project_id_0（缺失/过期时自动刷新一次）
+    const projectId = await this.ensureAccountProjectId(account);
+    if (!projectId) {
+      logger.warn(`[图片生成-project_id] 仍然为空，禁用账号并换号重试: cookie_id=${account.cookie_id}`);
+      await accountService.updateAccountStatus(account.cookie_id, 0);
+
+      const newExcludeList = [...excludeCookieIds, account.cookie_id];
+      try {
+        const newAccount = await this.getAvailableAccount(user_id, model_name, user, newExcludeList);
+        return await this.generateImage(requestBody, user_id, model_name, user, newAccount, newExcludeList, retryCount, endpointIndex, firstError403Type, projectRetryCount);
+      } catch (retryError) {
+        throw new ApiError('RESOURCE_PROJECT_INVALID', 400, 'RESOURCE_PROJECT_INVALID');
+      }
     }
+    requestBody.project = projectId;
     
     // 获取当前端点配置
     const endpoint = getApiEndpoint(endpointIndex);
@@ -851,7 +913,7 @@ class MultiAccountClient {
           if (nextEndpointIndex < totalEndpoints) {
             // 还有其他端点可以尝试
             logger.warn(`[图片生成-403错误] 端点[${endpointIndex}]返回403，尝试切换到端点[${nextEndpointIndex}]: cookie_id=${account.cookie_id}`);
-            return await this.generateImage(requestBody, user_id, model_name, user, account, excludeCookieIds, retryCount, nextEndpointIndex, currentFirstError403Type);
+            return await this.generateImage(requestBody, user_id, model_name, user, account, excludeCookieIds, retryCount, nextEndpointIndex, currentFirstError403Type, projectRetryCount);
           } else {
             // 所有端点都返回403
             // 只有当第一次错误不是 PERMISSION_DENIED 时才禁用账号
@@ -879,13 +941,8 @@ class MultiAccountClient {
               const newAccount = await this.getAvailableAccount(user_id, model_name, user, newExcludeList);
               logger.info(`[图片生成] 已获取新账号，重试请求: new_cookie_id=${newAccount.cookie_id}`);
               
-              // 更新 requestBody 中的 project
-              if (newAccount.project_id_0) {
-                requestBody.project = newAccount.project_id_0;
-              }
-              
               // 递归调用，使用新账号重试
-              return await this.generateImage(requestBody, user_id, model_name, user, newAccount, newExcludeList);
+              return await this.generateImage(requestBody, user_id, model_name, user, newAccount, newExcludeList, retryCount, endpointIndex, firstError403Type, projectRetryCount);
             } catch (retryError) {
               // 如果没有更多可用账号，返回配额耗尽错误
               logger.error(`[图片生成] 所有账号配额已耗尽，无法重试: ${retryError.message}`);
@@ -897,8 +954,17 @@ class MultiAccountClient {
             logger.warn(`[图片生成-400错误] 图片超过5MB限制`);
             throw new ApiError('IMAGE_INPUT_EXCEEDED_MAXIMUM_5_MB', 400, 'IMAGE_INPUT_EXCEEDED_MAXIMUM_5_MB');
           }
-          // 检查是否是 RESOURCE_PROJECT_INVALID 错误，禁用账号并换号重试
+          // 检查是否是 RESOURCE_PROJECT_INVALID 错误：先刷新 project_id 重试一次，再决定是否禁用换号
           if (responseText.includes('RESOURCE_PROJECT_INVALID')) {
+            if (projectRetryCount < 1) {
+              logger.warn(`[图片生成-400错误] RESOURCE_PROJECT_INVALID，尝试刷新 project_id 后重试: cookie_id=${account.cookie_id}`);
+              const refreshedProjectId = await this.ensureAccountProjectId(account);
+              if (refreshedProjectId) {
+                requestBody.project = refreshedProjectId;
+                return await this.generateImage(requestBody, user_id, model_name, user, account, excludeCookieIds, retryCount, endpointIndex, firstError403Type, projectRetryCount + 1);
+              }
+            }
+
             logger.warn(`[图片生成-400错误] RESOURCE_PROJECT_INVALID，禁用账号并尝试更换账号重试: cookie_id=${account.cookie_id}`);
             await accountService.updateAccountStatus(account.cookie_id, 0);
             
@@ -910,13 +976,8 @@ class MultiAccountClient {
               const newAccount = await this.getAvailableAccount(user_id, model_name, user, newExcludeList);
               logger.info(`[图片生成] 已获取新账号，重试请求: new_cookie_id=${newAccount.cookie_id}`);
               
-              // 更新 requestBody 中的 project
-              if (newAccount.project_id_0) {
-                requestBody.project = newAccount.project_id_0;
-              }
-              
               // 递归调用，使用新账号重试
-              return await this.generateImage(requestBody, user_id, model_name, user, newAccount, newExcludeList);
+              return await this.generateImage(requestBody, user_id, model_name, user, newAccount, newExcludeList, retryCount, endpointIndex, firstError403Type, projectRetryCount);
             } catch (retryError) {
               // 如果没有更多可用账号，返回错误
               logger.error(`[图片生成] 所有账号都不可用，无法重试: ${retryError.message}`);
@@ -959,7 +1020,7 @@ class MultiAccountClient {
             }
             
             // 递归调用，使用新账号重试，增加重试计数
-            return await this.generateImage(requestBody, user_id, model_name, user, newAccount, newExcludeList, retryCount + 1);
+            return await this.generateImage(requestBody, user_id, model_name, user, newAccount, newExcludeList, retryCount + 1, endpointIndex, firstError403Type, projectRetryCount);
           } catch (retryError) {
             // 如果没有更多可用账号，返回配额耗尽错误
             logger.error(`[图片生成] 所有账号配额已耗尽，无法重试: ${retryError.message}`);
