@@ -52,7 +52,8 @@ class KiroClient {
           auth: account.auth_method,
           refreshToken: account.refresh_token,
           clientId: account.client_id,
-          clientSecret: account.client_secret
+          clientSecret: account.client_secret,
+          region: account.region
         });
         
         const expires_at = Date.now() + (tokenData.expires_in * 1000);
@@ -103,11 +104,11 @@ class KiroClient {
     const requestBody = JSON.stringify(cwRequest);
 
     return new Promise((resolve, reject) => {
-      const headers = kiroService.getCodeWhispererHeaders(account.access_token, account.machineid);
+      const headers = kiroService.getCodeWhispererHeaders(account.access_token, account.machineid, account.region);
       headers['Content-Length'] = Buffer.byteLength(requestBody);
 
       const reqOptions = {
-        hostname: 'q.us-east-1.amazonaws.com',
+        hostname: headers.host,
         path: '/generateAssistantResponse',
         method: 'POST',
         headers
@@ -181,11 +182,11 @@ class KiroClient {
     const requestBody = JSON.stringify(payload);
 
     return new Promise((resolve, reject) => {
-      const headers = kiroService.getCodeWhispererHeaders(account.access_token, account.machineid);
+      const headers = kiroService.getCodeWhispererHeaders(account.access_token, account.machineid, account.region);
       headers['Content-Length'] = Buffer.byteLength(requestBody);
 
       const reqOptions = {
-        hostname: 'q.us-east-1.amazonaws.com',
+        hostname: headers.host,
         path: '/generateAssistantResponse',
         method: 'POST',
         headers
@@ -248,7 +249,7 @@ class KiroClient {
     logger.info(`[${requestId}] 开始Kiro MCP WebSearch: model=${model}, user_id=${user_id}, account_id=${account.account_id}`);
 
     try {
-      return await kiroService.mcpWebSearch(query, account.access_token, account.machineid);
+      return await kiroService.mcpWebSearch(query, account.access_token, account.machineid, account.region);
     } catch (error) {
       logger.error(`[${requestId}] MCP WebSearch失败:`, error.message);
 
@@ -485,7 +486,8 @@ class KiroClient {
             auth: account.auth_method,
             refreshToken: account.refresh_token,
             clientId: account.client_id,
-            clientSecret: account.client_secret
+            clientSecret: account.client_secret,
+            region: account.region
           });
           
           const expires_at = Date.now() + (tokenData.expires_in * 1000);
@@ -510,7 +512,8 @@ class KiroClient {
       const usageLimitsData = await kiroService.getUsageLimits(
         accessToken,
         account.profile_arn,
-        account.machineid
+        account.machineid,
+        account.region
       );
 
       // 4. 更新数据库中的余额信息（包含免费试用和bonus信息）

@@ -42,6 +42,33 @@ const KIRO_ENDPOINTS = {
   }
 };
 
+// Kiro / AWS 端点默认区域（历史兼容：之前写死 us-east-1）
+const DEFAULT_AWS_REGION = 'us-east-1';
+const AWS_REGION_RE = /^[a-z]{2}(?:-[a-z]+)+-\d+$/;
+
+function normalizeAwsRegion(value) {
+  if (typeof value !== 'string') return DEFAULT_AWS_REGION;
+  const region = value.trim().toLowerCase();
+  if (!region) return DEFAULT_AWS_REGION;
+  if (!AWS_REGION_RE.test(region)) {
+    throw new Error('region 格式不正确（例如 us-east-1 / ap-southeast-2）');
+  }
+  return region;
+}
+
+function buildAwsEndpoints(region) {
+  const normalizedRegion = normalizeAwsRegion(region);
+  const qHost = `q.${normalizedRegion}.amazonaws.com`;
+  return {
+    region: normalizedRegion,
+    IDC_REFRESH: { hostname: `oidc.${normalizedRegion}.amazonaws.com`, path: '/token' },
+    CODEWHISPERER: { hostname: qHost, path: '/generateAssistantResponse' },
+    MCP: { hostname: qHost, path: '/mcp' },
+    USAGE_LIMITS: { hostname: qHost, path: '/getUsageLimits' },
+    LIST_AVAILABLE_MODELS: { hostname: qHost, path: '/ListAvailableModels' },
+  };
+}
+
 /**
  * Kiro OAuth 重定向URI
  */
@@ -427,9 +454,10 @@ class KiroService {
    * @param {string} clientSecret - 客户端密钥
    * @returns {Promise<Object>} Token数据
    */
-  async refreshIdCToken(refreshToken, clientId, clientSecret) {
+  async refreshIdCToken(refreshToken, clientId, clientSecret, region) {
     const requestId = crypto.randomUUID().substring(0, 8);
-    logger.info(`[${requestId}] 开始刷新Kiro IdC Token`);
+    const endpoints = buildAwsEndpoints(region);
+    logger.info(`[${requestId}] 开始刷新Kiro IdC Token: region=${endpoints.region}`);
 
     return new Promise((resolve, reject) => {
       const postData = JSON.stringify({
@@ -440,12 +468,12 @@ class KiroService {
       });
 
       const options = {
-        hostname: KIRO_ENDPOINTS.IDC_REFRESH.hostname,
-        path: KIRO_ENDPOINTS.IDC_REFRESH.path,
+        hostname: endpoints.IDC_REFRESH.hostname,
+        path: endpoints.IDC_REFRESH.path,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Host': KIRO_ENDPOINTS.IDC_REFRESH.hostname,
+          'Host': endpoints.IDC_REFRESH.hostname,
           'x-amz-user-agent': 'aws-sdk-js/3.738.0 ua/2.1 os/other lang/js md/browser#unknown_unknown api/sso-oidc#3.738.0 m/E KiroIDE',
           'Content-Length': Buffer.byteLength(postData)
         }
@@ -495,7 +523,7 @@ class KiroService {
       if (!account.clientId || !account.clientSecret) {
         throw new Error('IdC认证需要clientId和clientSecret');
       }
-      return await this.refreshIdCToken(account.refreshToken, account.clientId, account.clientSecret);
+      return await this.refreshIdCToken(account.refreshToken, account.clientId, account.clientSecret, account.region);
     } else {
       throw new Error(`未知的认证方式: ${account.auth}`);
     }
@@ -506,8 +534,9 @@ class KiroService {
    * @param {string} accessToken - 访问令牌
    * @returns {Object} 请求头
    */
-  getCodeWhispererHeaders(accessToken, machineid) {
+  getCodeWhispererHeaders(accessToken, machineid, region) {
     const invocationId = crypto.randomUUID();
+    const endpoints = buildAwsEndpoints(region);
     const kiroUserAgent = `KiroIDE-${KIRO_IDE_VERSION}-${machineid}`;
     
     return {
@@ -516,7 +545,7 @@ class KiroService {
       'x-amzn-kiro-agent-mode': 'vibe',
       'x-amz-user-agent': `aws-sdk-js/1.0.26 ${kiroUserAgent}`,
       'user-agent': `aws-sdk-js/1.0.26 ua/2.1os/win32#10.0.26100 lang/js md/nodejs#22.21.1 api/codewhispererstreaming#1.0.26 m/E ${kiroUserAgent}`,
-      'host': KIRO_ENDPOINTS.CODEWHISPERER.hostname,
+      'host': endpoints.CODEWHISPERER.hostname,
       'amz-sdk-invocation-id': invocationId,
       'amz-sdk-request': 'attempt=1; max=3',
       'Authorization': `Bearer ${accessToken}`
@@ -529,8 +558,9 @@ class KiroService {
    * @param {string} machineid - 机器ID
    * @returns {Object} 请求头
    */
-  getMcpHeaders(accessToken, machineid) {
+  getMcpHeaders(accessToken, machineid, region) {
     const invocationId = crypto.randomUUID();
+    const endpoints = buildAwsEndpoints(region);
     const kiroUserAgent = `KiroIDE-${KIRO_IDE_VERSION}-${machineid}`;
 
     // MCP 端点参考 kiro.rs：不带 codewhisperer optout 等字段，避免触发上游校验
@@ -538,7 +568,7 @@ class KiroService {
       'content-type': 'application/json',
       'x-amz-user-agent': `aws-sdk-js/1.0.26 ${kiroUserAgent}`,
       'user-agent': `aws-sdk-js/1.0.26 ua/2.1 os/win32#10.0.26100 lang/js md/nodejs#22.21.1 api/codewhispererstreaming#1.0.26 m/E ${kiroUserAgent}`,
-      'host': KIRO_ENDPOINTS.MCP.hostname,
+      'host': endpoints.MCP.hostname,
       'amz-sdk-invocation-id': invocationId,
       'amz-sdk-request': 'attempt=1; max=3',
       'Authorization': `Bearer ${accessToken}`,
@@ -1106,7 +1136,7 @@ class KiroService {
    * @param {string} machineid - 机器ID
    * @returns {Promise<Object>} { toolUseId, query, results }
    */
-  async mcpWebSearch(query, accessToken, machineid) {
+  async mcpWebSearch(query, accessToken, machineid, region) {
     const trimmed = String(query || '').trim();
     if (!trimmed) {
       throw new Error('web_search query 不能为空');
@@ -1128,12 +1158,13 @@ class KiroService {
     };
 
     const requestBody = JSON.stringify(payload);
-    const headers = this.getMcpHeaders(accessToken, machineid);
+    const endpoints = buildAwsEndpoints(region);
+    const headers = this.getMcpHeaders(accessToken, machineid, endpoints.region);
     headers['Content-Length'] = Buffer.byteLength(requestBody);
 
     const raw = await this._httpsJsonRequest({
-      hostname: KIRO_ENDPOINTS.MCP.hostname,
-      path: KIRO_ENDPOINTS.MCP.path,
+      hostname: endpoints.MCP.hostname,
+      path: endpoints.MCP.path,
       method: 'POST',
       headers
     }, requestBody);
@@ -1211,7 +1242,7 @@ class KiroService {
    * @param {string} machineid - 机器ID
    * @returns {Promise<Array>} 模型列表
    */
-  async listAvailableModels(accessToken, profileArn, machineid) {
+  async listAvailableModels(accessToken, profileArn, machineid, region) {
     const requestId = crypto.randomUUID().substring(0, 8);
     logger.info(`[${requestId}] 开始获取Kiro可用模型列表`);
 
@@ -1223,15 +1254,16 @@ class KiroService {
 
       const invocationId = crypto.randomUUID();
       const kiroUserAgent = `KiroIDE-${KIRO_IDE_VERSION}-${machineid}`;
+      const endpoints = buildAwsEndpoints(region);
 
       const options = {
-        hostname: 'q.us-east-1.amazonaws.com',
-        path: `/ListAvailableModels?${params.toString()}`,
+        hostname: endpoints.LIST_AVAILABLE_MODELS.hostname,
+        path: `${endpoints.LIST_AVAILABLE_MODELS.path}?${params.toString()}`,
         method: 'GET',
         headers: {
           'x-amz-user-agent': `aws-sdk-js/1.0.0 ${kiroUserAgent}`,
           'user-agent': `aws-sdk-js/1.0.0 ua/2.1 os/win32#10.0.26100 lang/js md/nodejs#22.21.1 api/codewhispererruntime#1.0.0 m/E ${kiroUserAgent}`,
-          'host': 'q.us-east-1.amazonaws.com',
+          'host': endpoints.LIST_AVAILABLE_MODELS.hostname,
           'amz-sdk-invocation-id': invocationId,
           'amz-sdk-request': 'attempt=1; max=1',
           'Authorization': `Bearer ${accessToken}`
@@ -1286,7 +1318,7 @@ class KiroService {
    * @param {string} machineid - 机器ID
    * @returns {Promise<Object>} 使用量信息
    */
-  async getUsageLimits(accessToken, profileArn, machineid) {
+  async getUsageLimits(accessToken, profileArn, machineid, region) {
     const requestId = crypto.randomUUID().substring(0, 8);
     logger.info(`[${requestId}] 开始获取Kiro使用量信息`);
     return new Promise((resolve, reject) => {
@@ -1301,15 +1333,16 @@ class KiroService {
 
       const invocationId = crypto.randomUUID();
       const kiroUserAgent = `KiroIDE-${KIRO_IDE_VERSION}-${machineid}`;
+      const endpoints = buildAwsEndpoints(region);
 
       const options = {
-        hostname: KIRO_ENDPOINTS.USAGE_LIMITS.hostname,
-        path: `${KIRO_ENDPOINTS.USAGE_LIMITS.path}?${params.toString()}`,
+        hostname: endpoints.USAGE_LIMITS.hostname,
+        path: `${endpoints.USAGE_LIMITS.path}?${params.toString()}`,
         method: 'GET',
         headers: {
           'x-amz-user-agent': `aws-sdk-js/1.0.0 ${kiroUserAgent}`,
           'user-agent': `aws-sdk-js/1.0.0 ua/2.1 os/win32#10.0.26100 lang/js md/nodejs#22.21.1 api/codewhispererruntime#1.0.0 m/E ${kiroUserAgent}`,
-          'host': KIRO_ENDPOINTS.USAGE_LIMITS.hostname,
+          'host': endpoints.USAGE_LIMITS.hostname,
           'amz-sdk-invocation-id': invocationId,
           'amz-sdk-request': 'attempt=1; max=1',
           'Authorization': `Bearer ${accessToken}`

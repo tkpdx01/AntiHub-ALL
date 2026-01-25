@@ -62,6 +62,23 @@ TABLE_EXISTS=$(echo "$table_exists_out" | tr -d '[:space:]')
 
 if [ "$TABLE_EXISTS" = "t" ]; then
     echo "✅ 数据库已初始化（users 表已存在）"
+
+    # ============================================
+    # 1.1 轻量迁移：为 kiro_accounts 增加 region 字段（兼容旧库）
+    # ============================================
+    col_exists_out=$(psql -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'kiro_accounts' AND column_name = 'region');" 2>&1)
+    if [ $? -eq 0 ]; then
+        COL_EXISTS=$(echo "$col_exists_out" | tr -d '[:space:]')
+        if [ "$COL_EXISTS" != "t" ]; then
+            echo "🔧 检测到缺少字段 public.kiro_accounts.region，开始执行迁移..."
+            psql -v ON_ERROR_STOP=1 -c "ALTER TABLE public.kiro_accounts ADD COLUMN IF NOT EXISTS region character varying(32) NOT NULL DEFAULT 'us-east-1';" >/dev/null
+            psql -v ON_ERROR_STOP=1 -c "COMMENT ON COLUMN public.kiro_accounts.region IS 'AWS 区域ID（默认 us-east-1）';" >/dev/null
+            echo "✅ 迁移完成：已添加 public.kiro_accounts.region"
+        fi
+    else
+        echo "⚠️  无法检查 kiro_accounts.region 是否存在："
+        echo "$col_exists_out"
+    fi
 else
     echo "📊 数据库未初始化，开始导入 schema.sql..."
 

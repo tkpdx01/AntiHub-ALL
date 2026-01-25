@@ -1754,6 +1754,7 @@ export interface KiroAwsIdcDeviceAuthorizeResponse {
 export async function kiroAwsIdcDeviceAuthorize(payload: {
   account_name: string;
   is_shared?: number;
+  region?: string;
 }): Promise<KiroAwsIdcDeviceAuthorizeResponse> {
   return fetchWithAuth<KiroAwsIdcDeviceAuthorizeResponse>(
     `${API_BASE_URL}/api/kiro/aws-idc/device/authorize`,
@@ -1762,6 +1763,7 @@ export async function kiroAwsIdcDeviceAuthorize(payload: {
       body: JSON.stringify({
         account_name: payload.account_name,
         is_shared: payload.is_shared ?? 0,
+        region: payload.region,
       }),
     }
   );
@@ -1791,6 +1793,7 @@ export async function importKiroAwsIdcAccount(payload: {
   clientSecret: string;
   accountName: string;
   isShared?: number;
+  region?: string;
 }): Promise<KiroAccount> {
   const result = await fetchWithAuth<{ success: boolean; data: KiroAccount }>(
     `${API_BASE_URL}/api/kiro/aws-idc/import`,
@@ -1803,6 +1806,7 @@ export async function importKiroAwsIdcAccount(payload: {
         ],
         account_name: payload.accountName,
         is_shared: payload.isShared ?? 0,
+        region: payload.region,
       }),
     }
   );

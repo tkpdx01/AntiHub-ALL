@@ -33,6 +33,7 @@ class KiroAccountService {
    * @param {string} accountData.client_secret - IdC的client_secret
    * @param {string} accountData.profile_arn - Social的profile_arn
    * @param {string} accountData.machineid - 机器ID（必填）
+   * @param {string} accountData.region - AWS 区域ID（可选，默认 us-east-1）
    * @param {number} accountData.is_shared - 是否共享（必填，0=专属, 1=共享）
    * @param {string} accountData.email - 账号邮箱（可选）
    * @param {string} accountData.userid - 用户ID标识（必填）
@@ -62,6 +63,7 @@ class KiroAccountService {
       client_secret = null,
       profile_arn = null,
       machineid,
+      region = 'us-east-1',
       is_shared,
       email = null,
       userid,
@@ -116,16 +118,16 @@ class KiroAccountService {
           `UPDATE kiro_accounts
            SET user_id = $1, account_name = $2, auth_method = $3, refresh_token = $4,
                access_token = $5, expires_at = $6, client_id = $7, client_secret = $8,
-               profile_arn = $9, machineid = $10, is_shared = $11, email = $12,
-               subscription = $13, current_usage = $14, reset_date = $15,
-               usage_limit = $16, free_trial_status = $17, free_trial_usage = $18,
-               free_trial_expiry = $19, free_trial_limit = $20, bonus_usage = $21,
-               bonus_limit = $22, bonus_available = $23, bonus_details = $24,
+               profile_arn = $9, machineid = $10, region = $11, is_shared = $12, email = $13,
+               subscription = $14, current_usage = $15, reset_date = $16,
+               usage_limit = $17, free_trial_status = $18, free_trial_usage = $19,
+               free_trial_expiry = $20, free_trial_limit = $21, bonus_usage = $22,
+               bonus_limit = $23, bonus_available = $24, bonus_details = $25,
                updated_at = CURRENT_TIMESTAMP
-           WHERE userid = $25
+           WHERE userid = $26
            RETURNING *`,
           [user_id, account_name, auth_method, refresh_token, access_token, expires_at,
-           client_id, client_secret, profile_arn, machineid, is_shared, email,
+           client_id, client_secret, profile_arn, machineid, region, is_shared, email,
            subscription, current_usage, reset_date, usage_limit, free_trial_status,
            free_trial_usage, free_trial_expiry, free_trial_limit, bonus_usage, bonus_limit,
            bonus_available, JSON.stringify(bonus_details), userid]
@@ -138,14 +140,14 @@ class KiroAccountService {
         const result = await database.query(
           `INSERT INTO kiro_accounts
            (user_id, account_name, auth_method, refresh_token, access_token, expires_at,
-            client_id, client_secret, profile_arn, machineid, is_shared, email, userid,
+            client_id, client_secret, profile_arn, machineid, region, is_shared, email, userid,
             subscription, current_usage, reset_date, usage_limit, free_trial_status,
             free_trial_usage, free_trial_expiry, free_trial_limit, bonus_usage, bonus_limit,
             bonus_available, bonus_details, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, 1)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, 1)
            RETURNING *`,
           [user_id, account_name, auth_method, refresh_token, access_token, expires_at,
-           client_id, client_secret, profile_arn, machineid, is_shared, email, userid,
+           client_id, client_secret, profile_arn, machineid, region, is_shared, email, userid,
            subscription, current_usage, reset_date, usage_limit, free_trial_status,
            free_trial_usage, free_trial_expiry, free_trial_limit, bonus_usage, bonus_limit,
            bonus_available, JSON.stringify(bonus_details)]

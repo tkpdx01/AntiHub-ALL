@@ -92,11 +92,11 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
   const [kiroAwsIdcMethod, setKiroAwsIdcMethod] = useState<
     'device_code' | 'manual_import' | ''
   >('');
+  const [kiroAwsIdcRegion, setKiroAwsIdcRegion] = useState('us-east-1');
   const [qwenLoginMethod, setQwenLoginMethod] = useState<'oauth' | 'json'>('oauth');
   const [codexLoginMethod, setCodexLoginMethod] = useState<'oauth' | 'json'>('oauth');
   const [geminiCliLoginMethod, setGeminiCliLoginMethod] = useState<'oauth' | 'json'>('oauth');
   const [geminiCliCredentialJson, setGeminiCliCredentialJson] = useState('');
-  const [geminiCliAccountName, setGeminiCliAccountName] = useState('');
   const [kiroImportRefreshToken, setKiroImportRefreshToken] = useState('');
   const [kiroImportClientId, setKiroImportClientId] = useState('');
   const [kiroImportClientSecret, setKiroImportClientSecret] = useState('');
@@ -238,6 +238,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
         setKiroAwsIdcVerificationUriComplete('');
         setKiroAwsIdcExpiresAt('');
         setKiroAwsIdcIntervalSeconds(5);
+        setKiroAwsIdcRegion('us-east-1');
         setCountdown(600);
         setIsWaitingAuth(false);
         setStep('authorize');
@@ -961,6 +962,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
     const refreshToken = kiroImportRefreshToken.trim();
     const clientId = kiroImportClientId.trim();
     const clientSecret = kiroImportClientSecret.trim();
+    const region = kiroAwsIdcRegion.trim();
 
     if (!accountName) {
       toasterRef.current?.show({
@@ -988,6 +990,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
         clientSecret,
         accountName,
         isShared: 0,
+        region: region || undefined,
       });
 
       toasterRef.current?.show({
@@ -1037,6 +1040,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
 
   const handleStartKiroAwsIdcDevice = async () => {
     const accountName = kiroImportAccountName.trim();
+    const region = kiroAwsIdcRegion.trim();
     if (!accountName) {
       toasterRef.current?.show({
         title: '输入错误',
@@ -1061,6 +1065,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
       const result = await kiroAwsIdcDeviceAuthorize({
         account_name: accountName,
         is_shared: 0,
+        region: region || undefined,
       });
 
       setKiroAwsIdcStatus(result.status);
@@ -1415,10 +1420,8 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
 
   const handleStartGeminiCliOAuth = async () => {
     try {
-      const accountName = geminiCliAccountName.trim();
       const result = await getGeminiCLIOAuthAuthorizeUrl({
         is_shared: 0,
-        account_name: accountName || undefined,
       });
 
       setOauthUrl(result.auth_url);
@@ -1522,16 +1525,6 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
       return;
     }
 
-    const providedName = geminiCliAccountName.trim();
-    if (isBatch && providedName) {
-      (toasterRef.current?.show ?? showToast)({
-        title: '提示',
-        message: '批量导入会自动命名，已忽略"账号名称"',
-        variant: 'warning',
-        position: 'top-right',
-      });
-    }
-
     try {
       let successCount = 0;
       let failedCount = 0;
@@ -1547,7 +1540,6 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
         try {
           await importGeminiCLIAccount({
             credential_json: JSON.stringify(item),
-            account_name: isBatch ? undefined : (providedName || undefined),
             is_shared: 0,
           });
           successCount++;
@@ -1625,7 +1617,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
     setCodexCredentialJson('');
     setCodexAccountName('');
     setGeminiCliCredentialJson('');
-    setGeminiCliAccountName('');
+    setKiroAwsIdcRegion('us-east-1');
     setOauthUrl('');
     setOauthState('');
     setCallbackUrl('');
@@ -2324,22 +2316,6 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                 </>
               ) : platform === 'gemini' ? (
                 <>
-                  <div className="space-y-3">
-                    <Label htmlFor="gemini-cli-account-name" className="text-base font-semibold">
-                      账号名称（可选）
-                    </Label>
-                    <Input
-                      id="gemini-cli-account-name"
-                      placeholder="给这个账号起个名字（可不填）"
-                      value={geminiCliAccountName}
-                      onChange={(e) => setGeminiCliAccountName(e.target.value)}
-                      className="h-12"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      留空会自动命名：邮箱前三位 + account_id 首段（按 account_id + 邮箱 区分，避免覆盖）
-                    </p>
-                  </div>
-
                   {geminiCliLoginMethod === 'json' ? (
                     <>
                       <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
@@ -2602,6 +2578,23 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                   </div>
 
                   <div className="space-y-3">
+                    <Label htmlFor="kiro-aws-idc-region" className="text-base font-semibold">
+                      region（默认 us-east-1）
+                    </Label>
+                    <Input
+                      id="kiro-aws-idc-region"
+                      placeholder="例如：us-east-1"
+                      value={kiroAwsIdcRegion}
+                      onChange={(e) => setKiroAwsIdcRegion(e.target.value)}
+                      className="h-12 font-mono text-sm"
+                      autoComplete="off"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      影响 AWS OIDC / CodeWhisperer 端点；留空则使用默认值。
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
                     <Label className="text-base font-semibold">授权操作</Label>
                     <div className="flex gap-2">
                       <StatefulButton
@@ -2752,6 +2745,23 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                       onChange={(e) => setKiroImportAccountName(e.target.value)}
                       className="h-12"
                     />
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label htmlFor="kiro-aws-idc-region" className="text-base font-semibold">
+                      region（默认 us-east-1）
+                    </Label>
+                    <Input
+                      id="kiro-aws-idc-region"
+                      placeholder="例如：us-east-1"
+                      value={kiroAwsIdcRegion}
+                      onChange={(e) => setKiroAwsIdcRegion(e.target.value)}
+                      className="h-12 font-mono text-sm"
+                      autoComplete="off"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      影响 AWS OIDC / CodeWhisperer 端点；留空则使用默认值。
+                    </p>
                   </div>
 
                   <div className="space-y-3">

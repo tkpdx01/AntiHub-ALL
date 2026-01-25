@@ -19,11 +19,31 @@ const app = express();
 database.initialize(config.database);
 
 // 检查数据库连接
-database.ping().then(connected => {
-  if (connected) {
-    logger.info('数据库连接成功');
-  } else {
+database.ping().then(async (connected) => {
+  if (!connected) {
     logger.error('数据库连接失败，请检查配置');
+    return;
+  }
+
+  logger.info('数据库连接成功');
+
+  // 轻量迁移：为旧库补齐 kiro_accounts.region（兼容早期写死 us-east-1 的版本）
+  try {
+    const existsResult = await database.query(
+      "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'kiro_accounts' AND column_name = 'region') AS exists"
+    );
+    const exists = Boolean(existsResult?.rows?.[0]?.exists);
+    if (!exists) {
+      await database.query(
+        "ALTER TABLE public.kiro_accounts ADD COLUMN IF NOT EXISTS region character varying(32) NOT NULL DEFAULT 'us-east-1'"
+      );
+      await database.query(
+        "COMMENT ON COLUMN public.kiro_accounts.region IS 'AWS 区域ID（默认 us-east-1）'"
+      );
+      logger.info('数据库迁移完成：已添加 public.kiro_accounts.region');
+    }
+  } catch (error) {
+    logger.warn('数据库迁移检查失败（可忽略）:', error.message);
   }
 });
 

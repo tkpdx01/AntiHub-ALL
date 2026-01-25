@@ -10,6 +10,7 @@ Kiro AWS IdC / Builder ID（设备码登录 + 本地凭据导入）API
 from __future__ import annotations
 
 import base64
+import re
 import secrets
 import time
 import uuid
@@ -34,8 +35,7 @@ router = APIRouter(prefix="/api/kiro/aws-idc", tags=["Kiro AWS IdC / Builder ID"
 
 # ======== 常量：来自 docs/kiro-aws-idc-auth.md 的参考实现 ========
 
-AWS_REGION = "us-east-1"
-AWS_OIDC_BASE_URL = f"https://oidc.{AWS_REGION}.amazonaws.com"
+DEFAULT_AWS_REGION = "us-east-1"
 AWS_BUILDER_ID_START_URL = "https://view.awsapps.com/start"
 AWS_GRANT_TYPE_DEVICE_CODE = "urn:ietf:params:oauth:grant-type:device_code"
 
@@ -48,6 +48,32 @@ AWS_OIDC_SCOPES = [
 ]
 
 KIRO_AWS_IDC_STATE_KEY_PREFIX = "kiro:aws_idc:device:"
+
+
+_AWS_REGION_RE = re.compile(r"^[a-z]{2}(?:-[a-z]+)+-\d+$")
+
+
+def _normalize_aws_region(value: Any) -> str:
+    """
+    规范化 AWS region（例如 us-east-1）。
+
+    注意：region 会被拼到 hostname 里，必须做严格校验，避免出现 @ / . 等字符导致 URL 解析异常或被注入。
+    """
+
+    if value is None:
+        return DEFAULT_AWS_REGION
+    if not isinstance(value, str):
+        raise ValueError("region 必须是字符串（例如 us-east-1）")
+    region = value.strip().lower()
+    if not region:
+        return DEFAULT_AWS_REGION
+    if not _AWS_REGION_RE.fullmatch(region):
+        raise ValueError("region 格式不正确（例如 us-east-1 / ap-southeast-2）")
+    return region
+
+
+def _aws_oidc_base_url(region: str) -> str:
+    return f"https://oidc.{region}.amazonaws.com"
 
 
 def _redis_key(state: str) -> str:
@@ -161,6 +187,8 @@ async def import_kiro_aws_idc_credentials(
         refresh_token = _get_first_value(merged, ["refresh_token", "refreshToken"])
         client_id = _get_first_value(merged, ["client_id", "clientId"])
         client_secret = _get_first_value(merged, ["client_secret", "clientSecret"])
+        region_from_files = _get_first_value(merged, ["region", "aws_region", "awsRegion"])
+        region = _normalize_aws_region(request.region or region_from_files)
 
         if not refresh_token:
             raise ValueError("缺少 refreshToken / refresh_token")
@@ -184,6 +212,7 @@ async def import_kiro_aws_idc_credentials(
             "client_id": client_id,
             "client_secret": client_secret,
             "machineid": machineid,
+            "region": region,
             "is_shared": is_shared,
         }
         if userid:
@@ -220,6 +249,8 @@ async def start_kiro_builder_id_device_flow(
 ):
     try:
         is_shared = _validate_is_shared(request.is_shared)
+        region = _normalize_aws_region(request.region)
+        aws_oidc_base_url = _aws_oidc_base_url(region)
         state = uuid.uuid4().hex
         machineid = secrets.token_hex(32)
 
@@ -229,7 +260,7 @@ async def start_kiro_builder_id_device_flow(
         async with httpx.AsyncClient(timeout=timeout) as client:
             # 1) Register OIDC client
             reg_resp = await client.post(
-                f"{AWS_OIDC_BASE_URL}/client/register",
+                f"{aws_oidc_base_url}/client/register",
                 json={
                     "clientName": "Kiro IDE",
                     "clientType": "public",
@@ -259,7 +290,7 @@ async def start_kiro_builder_id_device_flow(
 
             # 2) Start device authorization
             auth_resp = await client.post(
-                f"{AWS_OIDC_BASE_URL}/device_authorization",
+                f"{aws_oidc_base_url}/device_authorization",
                 json={
                     "clientId": client_id,
                     "clientSecret": client_secret,
@@ -304,6 +335,7 @@ async def start_kiro_builder_id_device_flow(
                 "account_name": request.account_name or "Kiro Builder ID",
                 "is_shared": is_shared,
                 "machineid": machineid,
+                "region": region,
                 "created_at_ms": now_ms,
                 "expires_at_ms": expires_at_ms,
                 "next_poll_at_ms": next_poll_at_ms,
@@ -401,6 +433,8 @@ async def get_kiro_builder_id_device_status(
         client_id = info.get("client_id")
         client_secret = info.get("client_secret")
         device_code = info.get("device_code")
+        region = _normalize_aws_region(info.get("region"))
+        aws_oidc_base_url = _aws_oidc_base_url(region)
         if not client_id or not client_secret or not device_code:
             await redis.set_json(
                 key,
@@ -417,7 +451,7 @@ async def get_kiro_builder_id_device_status(
         timeout = httpx.Timeout(15.0, connect=5.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
             token_resp = await client.post(
-                f"{AWS_OIDC_BASE_URL}/token",
+                f"{aws_oidc_base_url}/token",
                 json={
                     "clientId": client_id,
                     "clientSecret": client_secret,
@@ -454,6 +488,7 @@ async def get_kiro_builder_id_device_status(
                 "client_id": client_id,
                 "client_secret": client_secret,
                 "machineid": info.get("machineid") or secrets.token_hex(32),
+                "region": region,
                 "is_shared": int(info.get("is_shared") or 0),
             }
             if userid:

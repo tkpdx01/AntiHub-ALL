@@ -292,15 +292,15 @@ router.post('/api/kiro/oauth/callback', async (req, res) => {
 // ==================== Kiro账号管理API ====================
 
 /**
- * 创建Kiro账号（手动方式，需要提供refresh_token）
- * POST /api/kiro/accounts
- * Body: { account_name, auth_method, refresh_token, client_id?, client_secret?, machineid, is_shared, email?, userid, subscription, current_usage, reset_date, usage_limit }
- */
+  * 创建Kiro账号（手动方式，需要提供refresh_token）
+  * POST /api/kiro/accounts
+  * Body: { account_name, auth_method, refresh_token, client_id?, client_secret?, machineid, region?, is_shared, email?, userid, subscription, current_usage, reset_date, usage_limit }
+  */
 router.post('/api/kiro/accounts', authenticateApiKey, async (req, res) => {
   try {
     const {
       account_name, auth_method, refresh_token, client_id, client_secret,
-      machineid, is_shared, email, userid,
+      machineid, region, is_shared, email, userid,
       subscription, current_usage, reset_date, usage_limit
     } = req.body;
 
@@ -332,7 +332,8 @@ router.post('/api/kiro/accounts', authenticateApiKey, async (req, res) => {
       auth: auth_method,
       refreshToken: refresh_token,
       clientId: client_id,
-      clientSecret: client_secret
+      clientSecret: client_secret,
+      region
     });
 
     const expires_at = Date.now() + (tokenData.expires_in * 1000);
@@ -344,7 +345,8 @@ router.post('/api/kiro/accounts', authenticateApiKey, async (req, res) => {
       usageLimitsData = await kiroService.getUsageLimits(
         tokenData.access_token,
         tokenData.profile_arn,
-        machineid
+        machineid,
+        region
       );
       logger.info('使用量信息获取成功:', usageLimitsData);
     } catch (error) {
@@ -382,6 +384,7 @@ router.post('/api/kiro/accounts', authenticateApiKey, async (req, res) => {
       client_secret,
       profile_arn: tokenData.profile_arn,
       machineid,
+      region,
       is_shared,
       email: finalEmail,
       userid: finalUserid,
@@ -643,7 +646,8 @@ router.get('/api/kiro/accounts/:account_id/balance', authenticateApiKey, async (
         auth: account.auth_method,
         refreshToken: account.refresh_token,
         clientId: account.client_id,
-        clientSecret: account.client_secret
+        clientSecret: account.client_secret,
+        region: account.region
       });
       
       const expires_at = Date.now() + (tokenData.expires_in * 1000);
@@ -663,7 +667,8 @@ router.get('/api/kiro/accounts/:account_id/balance', authenticateApiKey, async (
     const usageLimitsData = await kiroService.getUsageLimits(
       account.access_token,
       account.profile_arn,
-      account.machineid
+      account.machineid,
+      account.region
     );
 
     // 更新数据库中的使用量信息

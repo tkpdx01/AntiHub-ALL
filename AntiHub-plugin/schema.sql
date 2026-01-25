@@ -271,6 +271,7 @@ CREATE TABLE public.kiro_accounts (
     client_secret text,
     profile_arn text,
     machineid text NOT NULL,
+    region character varying(32) DEFAULT 'us-east-1' NOT NULL,
     is_shared smallint DEFAULT 0 NOT NULL,
     email character varying(255),
     userid text NOT NULL,
@@ -380,6 +381,13 @@ COMMENT ON COLUMN public.kiro_accounts.profile_arn IS 'Social认证的profile_ar
 --
 
 COMMENT ON COLUMN public.kiro_accounts.machineid IS '机器ID（必填）';
+
+
+--
+-- Name: COLUMN kiro_accounts.region; Type: COMMENT; Schema: public; Owner: antigravity
+--
+
+COMMENT ON COLUMN public.kiro_accounts.region IS 'AWS 区域ID（默认 us-east-1）';
 
 
 --

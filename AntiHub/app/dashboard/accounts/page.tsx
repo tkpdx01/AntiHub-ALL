@@ -36,8 +36,6 @@ import {
   getGeminiCLIAccountQuota,
   deleteGeminiCLIAccount,
   updateGeminiCLIAccountStatus,
-  updateGeminiCLIAccountName,
-  updateGeminiCLIAccountProject,
   type CodexWhamUsageData,
   type Account,
   type AccountProjects,
@@ -155,12 +153,6 @@ export default function AccountsPage() {
   const [newCodexAccountName, setNewCodexAccountName] = useState('');
   const [isRenamingCodex, setIsRenamingCodex] = useState(false);
 
-  // 重命名 GeminiCLI 账号 Dialog 状态
-  const [isGeminiCliRenameDialogOpen, setIsGeminiCliRenameDialogOpen] = useState(false);
-  const [renamingGeminiCliAccount, setRenamingGeminiCliAccount] = useState<GeminiCLIAccount | null>(null);
-  const [newGeminiCliAccountName, setNewGeminiCliAccountName] = useState('');
-  const [isRenamingGeminiCli, setIsRenamingGeminiCli] = useState(false);
-
   // Antigravity 账号详情 Dialog 状态
   const [isAntigravityDetailDialogOpen, setIsAntigravityDetailDialogOpen] = useState(false);
   const [antigravityDetail, setAntigravityDetail] = useState<AntigravityAccountDetail | null>(null);
@@ -205,6 +197,24 @@ export default function AccountsPage() {
     onConfirm: () => void;
   } | null>(null);
   const [isConfirmLoading, setIsConfirmLoading] = useState(false);
+
+  const formatGeminiCliResetTime = (value: string | null | undefined) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    })
+      .format(date)
+      .replace(/\//g, '-');
+  };
 
   const loadAccounts = async () => {
     try {
@@ -850,12 +860,6 @@ export default function AccountsPage() {
     setIsCodexRenameDialogOpen(true);
   };
 
-  const handleRenameGeminiCLI = (account: GeminiCLIAccount) => {
-    setRenamingGeminiCliAccount(account);
-    setNewGeminiCliAccountName(account.account_name || account.email || '');
-    setIsGeminiCliRenameDialogOpen(true);
-  };
-
   const handleRenameAntigravity = (account: Account) => {
     setRenamingAntigravityAccount(account);
     setNewAntigravityAccountName(account.name || '');
@@ -982,52 +986,6 @@ export default function AccountsPage() {
       });
     } finally {
       setIsRenamingCodex(false);
-    }
-  };
-
-  const handleSubmitGeminiCliRename = async () => {
-    if (!renamingGeminiCliAccount) return;
-
-    if (!newGeminiCliAccountName.trim()) {
-      toasterRef.current?.show({
-        title: '输入错误',
-        message: '账号名称不能为空',
-        variant: 'warning',
-        position: 'top-right',
-      });
-      return;
-    }
-
-    setIsRenamingGeminiCli(true);
-    try {
-      const updated = await updateGeminiCLIAccountName(
-        renamingGeminiCliAccount.account_id,
-        newGeminiCliAccountName.trim()
-      );
-      setGeminiCliAccounts(
-        geminiCliAccounts.map((a) =>
-          a.account_id === renamingGeminiCliAccount.account_id ? { ...a, ...updated } : a
-        )
-      );
-      setDetailGeminiCliAccount((prev) =>
-        prev && prev.account_id === renamingGeminiCliAccount.account_id ? { ...prev, ...updated } : prev
-      );
-      setIsGeminiCliRenameDialogOpen(false);
-      toasterRef.current?.show({
-        title: '重命名成功',
-        message: '账号名称已更新',
-        variant: 'success',
-        position: 'top-right',
-      });
-    } catch (err) {
-      toasterRef.current?.show({
-        title: '重命名失败',
-        message: err instanceof Error ? err.message : '更新账号名称失败',
-        variant: 'error',
-        position: 'top-right',
-      });
-    } finally {
-      setIsRenamingGeminiCli(false);
     }
   };
 
@@ -2049,7 +2007,6 @@ export default function AccountsPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="min-w-[100px]">账号ID</TableHead>
-                        <TableHead className="min-w-[160px]">账号名称</TableHead>
                         <TableHead className="min-w-[200px]">邮箱</TableHead>
                         <TableHead className="min-w-[180px]">项目ID</TableHead>
                         <TableHead className="min-w-[80px]">状态</TableHead>
@@ -2063,10 +2020,7 @@ export default function AccountsPage() {
                           <TableCell className="font-mono text-sm">
                             {account.account_id}
                           </TableCell>
-                          <TableCell>
-                            {account.account_name || account.email || '未命名'}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
+                          <TableCell className="text-sm break-all">
                             {account.email || '-'}
                           </TableCell>
                           <TableCell className="font-mono text-sm">
@@ -2101,10 +2055,6 @@ export default function AccountsPage() {
                                 <DropdownMenuItem onClick={() => handleCopyGeminiCLICredentials(account)}>
                                   <IconCopy className="size-4 mr-2" />
                                   复制凭证为JSON
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleRenameGeminiCLI(account)}>
-                                  <IconEdit className="size-4 mr-2" />
-                                  重命名
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleToggleGeminiCLIStatus(account)}>
                                   {account.status === 1 ? (
@@ -2247,6 +2197,8 @@ export default function AccountsPage() {
             <DialogDescription className="break-all text-left">
               {geminiCliQuotaAccount ? `账号ID: ${geminiCliQuotaAccount.account_id}` : ''}
               {geminiCliQuotaData?.project_id ? ` | Project: ${geminiCliQuotaData.project_id}` : ''}
+              <br />
+              重置时间按中国时区（UTC+8）展示
             </DialogDescription>
           </DialogHeader>
 
@@ -2263,9 +2215,7 @@ export default function AccountsPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="min-w-[220px]">模型</TableHead>
-                          <TableHead className="min-w-[120px]">Token类型</TableHead>
                           <TableHead className="min-w-[120px]">剩余比例</TableHead>
-                          <TableHead className="min-w-[140px]">剩余数值</TableHead>
                           <TableHead className="min-w-[220px]">重置时间</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -2275,21 +2225,13 @@ export default function AccountsPage() {
                             <TableCell className="font-mono text-xs md:text-sm break-all">
                               {bucket.model_id}
                             </TableCell>
-                            <TableCell className="text-xs md:text-sm">
-                              {bucket.token_type || '-'}
-                            </TableCell>
                             <TableCell className="font-mono text-xs md:text-sm">
                               {bucket.remaining_fraction === null || bucket.remaining_fraction === undefined
                                 ? '-'
                                 : `${(bucket.remaining_fraction * 100).toFixed(1)}%`}
                             </TableCell>
-                            <TableCell className="font-mono text-xs md:text-sm">
-                              {bucket.remaining_amount === null || bucket.remaining_amount === undefined
-                                ? '-'
-                                : bucket.remaining_amount}
-                            </TableCell>
                             <TableCell className="text-xs md:text-sm text-muted-foreground break-all">
-                              {bucket.reset_time || '-'}
+                              {formatGeminiCliResetTime(bucket.reset_time)}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -2445,56 +2387,6 @@ export default function AccountsPage() {
               disabled={isRenamingCodex || !newCodexAccountName.trim()}
             >
               {isRenamingCodex ? (
-                <>
-                  <MorphingSquare className="size-4 mr-2" />
-                  保存中...
-                </>
-              ) : (
-                '保存'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 重命名 GeminiCLI 账号 Dialog */}
-      <Dialog open={isGeminiCliRenameDialogOpen} onOpenChange={setIsGeminiCliRenameDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>重命名账号</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="gemini-cli-account-name">新的账号名称</Label>
-              <Input
-                id="gemini-cli-account-name"
-                placeholder="输入账号名称"
-                value={newGeminiCliAccountName}
-                onChange={(e) => setNewGeminiCliAccountName(e.target.value)}
-                maxLength={50}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isRenamingGeminiCli) {
-                    handleSubmitGeminiCliRename();
-                  }
-                }}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsGeminiCliRenameDialogOpen(false)}
-              disabled={isRenamingGeminiCli}
-            >
-              取消
-            </Button>
-            <Button
-              onClick={handleSubmitGeminiCliRename}
-              disabled={isRenamingGeminiCli || !newGeminiCliAccountName.trim()}
-            >
-              {isRenamingGeminiCli ? (
                 <>
                   <MorphingSquare className="size-4 mr-2" />
                   保存中...
@@ -3170,10 +3062,6 @@ export default function AccountsPage() {
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">账号ID</Label>
                       <p className="text-sm font-mono break-all">{detailGeminiCliAccount.account_id}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">账号名称</Label>
-                      <p className="text-sm break-all">{detailGeminiCliAccount.account_name || '未命名'}</p>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">邮箱</Label>

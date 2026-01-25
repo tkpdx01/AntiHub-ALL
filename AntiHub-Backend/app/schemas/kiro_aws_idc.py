@@ -27,6 +27,9 @@ class KiroAwsIdcImportRequest(BaseModel):
     account_name: Optional[str] = Field(
         None, description="账号显示名称（可选，不传则后端使用默认值）"
     )
+    region: Optional[str] = Field(
+        None, description="AWS 区域ID（例如 us-east-1），不传则默认 us-east-1"
+    )
     is_shared: int = Field(0, description="0=私有账号，1=共享账号")
 
 
@@ -38,5 +41,7 @@ class KiroAwsIdcDeviceAuthorizeRequest(BaseModel):
     account_name: Optional[str] = Field(
         None, description="账号显示名称（可选，不传则后端使用默认值）"
     )
+    region: Optional[str] = Field(
+        None, description="AWS 区域ID（例如 us-east-1），不传则默认 us-east-1"
+    )
     is_shared: int = Field(0, description="0=私有账号，1=共享账号")
-
