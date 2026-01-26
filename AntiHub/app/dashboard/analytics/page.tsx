@@ -59,11 +59,11 @@ export default function AnalyticsPage() {
   const [requestLogs, setRequestLogs] = useState<RequestUsageLogItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [antigravityCurrentPage, setAntigravityCurrentPage] = useState(1); // Antigravity 分页
-  const [requestCurrentPage, setRequestCurrentPage] = useState(1); // Qwen/Codex/GeminiCLI 分页（本系统请求日志）
+  const [requestCurrentPage, setRequestCurrentPage] = useState(1); // Qwen/Codex/GeminiCLI/ZAI TTS 分页（本系统请求日志）
   const [totalRecords, setTotalRecords] = useState(0);
   const [antigravityTotalRecords, setAntigravityTotalRecords] = useState(0); // Antigravity 总记录数
   const [requestTotalRecords, setRequestTotalRecords] = useState(0);
-  const [activeTab, setActiveTab] = useState<'antigravity' | 'kiro' | 'qwen' | 'codex' | 'gemini-cli'>('antigravity');
+  const [activeTab, setActiveTab] = useState<'antigravity' | 'kiro' | 'qwen' | 'codex' | 'gemini-cli' | 'zai-tts'>('antigravity');
   const [isLoading, setIsLoading] = useState(true);
   const pageSize = 50;
 
@@ -97,7 +97,7 @@ export default function AnalyticsPage() {
 
         // 加载所有账号的消费记录并聚合
         await loadKiroLogs(accountsData);
-      } else if (activeTab === 'qwen' || activeTab === 'codex' || activeTab === 'gemini-cli') {
+      } else if (activeTab === 'qwen' || activeTab === 'codex' || activeTab === 'gemini-cli' || activeTab === 'zai-tts') {
         const offset = (requestCurrentPage - 1) * pageSize;
         const configType = activeTab;
         const [statsData, logsData] = await Promise.all([
@@ -251,9 +251,16 @@ export default function AnalyticsPage() {
   const isFirstLoadForTab =
     (activeTab === 'antigravity' && quotas.length === 0 && allConsumptions.length === 0) ||
     (activeTab === 'kiro' && kiroLogs.length === 0 && !kiroStats) ||
-    ((activeTab === 'qwen' || activeTab === 'codex' || activeTab === 'gemini-cli') && requestLogs.length === 0 && !requestStats);
+    ((activeTab === 'qwen' || activeTab === 'codex' || activeTab === 'gemini-cli' || activeTab === 'zai-tts') && requestLogs.length === 0 && !requestStats);
 
-  const requestProviderLabel = activeTab === 'codex' ? 'Codex' : activeTab === 'gemini-cli' ? 'GeminiCLI' : 'Qwen';
+  const requestProviderLabel =
+    activeTab === 'codex'
+      ? 'Codex'
+      : activeTab === 'gemini-cli'
+        ? 'GeminiCLI'
+        : activeTab === 'zai-tts'
+          ? 'ZAI TTS'
+          : 'Qwen';
 
   if (isLoading && isFirstLoadForTab) {
     return (
@@ -275,9 +282,9 @@ export default function AnalyticsPage() {
           <div></div>
           <Select
             value={activeTab}
-            onValueChange={(value: 'antigravity' | 'kiro' | 'qwen' | 'codex' | 'gemini-cli') => {
+            onValueChange={(value: 'antigravity' | 'kiro' | 'qwen' | 'codex' | 'gemini-cli' | 'zai-tts') => {
               setActiveTab(value);
-              if (value === 'qwen' || value === 'codex' || value === 'gemini-cli') setRequestCurrentPage(1);
+              if (value === 'qwen' || value === 'codex' || value === 'gemini-cli' || value === 'zai-tts') setRequestCurrentPage(1);
             }}
           >
             <SelectTrigger className="w-[160px] h-9">
@@ -296,6 +303,11 @@ export default function AnalyticsPage() {
                   <span className="flex items-center gap-2">
                     <Qwen className="size-4" />
                     Qwen
+                  </span>
+                ) : activeTab === 'zai-tts' ? (
+                  <span className="flex items-center gap-2">
+                    <OpenAI className="size-4" />
+                    ZAI TTS
                   </span>
                 ) : activeTab === 'gemini-cli' ? (
                   <span className="flex items-center gap-2">
@@ -327,6 +339,12 @@ export default function AnalyticsPage() {
                 <span className="flex items-center gap-2">
                   <Qwen className="size-4" />
                   Qwen
+                </span>
+              </SelectItem>
+              <SelectItem value="zai-tts">
+                <span className="flex items-center gap-2">
+                  <OpenAI className="size-4" />
+                  ZAI TTS
                 </span>
               </SelectItem>
               <SelectItem value="gemini-cli">
@@ -524,7 +542,7 @@ export default function AnalyticsPage() {
         )}
 
         {/* Qwen/Codex/GeminiCLI 请求统计（本系统记录） */}
-        {(activeTab === 'qwen' || activeTab === 'codex' || activeTab === 'gemini-cli') && (
+        {(activeTab === 'qwen' || activeTab === 'codex' || activeTab === 'gemini-cli' || activeTab === 'zai-tts') && (
           <>
             <Card className="mb-6">
               <CardHeader>
@@ -580,6 +598,12 @@ export default function AnalyticsPage() {
                           <TableRow>
                             <TableHead className="min-w-[90px]">状态</TableHead>
                             <TableHead className="min-w-[160px]">模型</TableHead>
+                            {activeTab === 'zai-tts' && (
+                              <>
+                                <TableHead className="min-w-[140px]">音色ID</TableHead>
+                                <TableHead className="min-w-[140px]">账号ID</TableHead>
+                              </>
+                            )}
                             <TableHead className="min-w-[110px]">Input</TableHead>
                             <TableHead className="min-w-[110px]">Output</TableHead>
                             <TableHead className="min-w-[110px]">Total</TableHead>
@@ -606,6 +630,16 @@ export default function AnalyticsPage() {
                                   </div>
                                 </div>
                               </TableCell>
+                              {activeTab === 'zai-tts' && (
+                                <>
+                                  <TableCell className="font-mono text-sm whitespace-nowrap">
+                                    {log.tts_voice_id || '-'}
+                                  </TableCell>
+                                  <TableCell className="font-mono text-sm whitespace-nowrap">
+                                    {log.tts_account_id || '-'}
+                                  </TableCell>
+                                </>
+                              )}
                               <TableCell className="font-mono text-sm whitespace-nowrap">
                                 {(log.input_tokens || 0).toLocaleString()}
                               </TableCell>

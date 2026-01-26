@@ -14,6 +14,7 @@ from app.api.routes.anthropic import router as anthropic_router
 from app.api.routes.gemini import router as gemini_router
 from app.api.routes.codex import router as codex_router
 from app.api.routes.gemini_cli import router as gemini_cli_router
+from app.api.routes.zai_tts import router as zai_tts_router
 
 __all__ = [
     "auth_router",
@@ -29,4 +30,5 @@ __all__ = [
     "gemini_router",
     "codex_router",
     "gemini_cli_router",
+    "zai_tts_router",
 ]

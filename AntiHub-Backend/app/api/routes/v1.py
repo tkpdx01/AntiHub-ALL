@@ -7,11 +7,12 @@ OpenAI兼容的API端点
 import asyncio
 import json
 import logging
+import os
 from typing import List, Dict, Any, Optional
 import time
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps_flexible import get_user_flexible
@@ -21,6 +22,7 @@ from app.services.plugin_api_service import PluginAPIService
 from app.services.kiro_service import KiroService, UpstreamAPIError
 from app.services.codex_service import CodexService
 from app.services.gemini_cli_api_service import GeminiCLIAPIService
+from app.services.zai_tts_service import ZaiTTSService
 from app.services.anthropic_adapter import AnthropicAdapter
 from app.services.usage_log_service import (
     UsageLogService,
@@ -87,6 +89,12 @@ def get_gemini_cli_api_service(
     redis: RedisClient = Depends(get_redis),
 ) -> GeminiCLIAPIService:
     return GeminiCLIAPIService(db, redis)
+
+
+def get_zai_tts_service(
+    db: AsyncSession = Depends(get_db_session),
+) -> ZaiTTSService:
+    return ZaiTTSService(db)
 
 
 @router.get(
@@ -177,6 +185,108 @@ async def list_models(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取模型列表失败: {str(e)}"
         )
+
+
+@router.post(
+    "/audio/speech",
+    summary="OpenAI 兼容 TTS",
+    description="ZAI TTS 接入的 /v1/audio/speech 兼容端点",
+)
+async def audio_speech(
+    raw_request: Request,
+    current_user: User = Depends(get_user_flexible),
+    zai_tts_service: ZaiTTSService = Depends(get_zai_tts_service),
+):
+    start_time = time.monotonic()
+    endpoint = raw_request.url.path
+    method = raw_request.method
+    api_key_id = getattr(current_user, "_api_key_id", None)
+
+    try:
+        request_json = await raw_request.json()
+    except Exception:
+        request_json = dict(raw_request.query_params)
+
+    if not isinstance(request_json, dict):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Request body must be a JSON object")
+
+    input_text = str(request_json.get("input") or "").strip()
+    voice_id = str(request_json.get("voice") or "").strip()
+    speed = request_json.get("speed", 1.0)
+    volume = request_json.get("volume", 1)
+    stream = bool(request_json.get("stream"))
+    model_name = str(request_json.get("model") or "").strip() or "zai-tts"
+
+    account = await zai_tts_service.select_active_account(current_user.id)
+    if not voice_id:
+        voice_id = account.voice_id or "system_001"
+
+    async def _record_usage(success: bool, status_code: Optional[int], error_message: Optional[str] = None):
+        duration_ms = int((time.monotonic() - start_time) * 1000)
+        await UsageLogService.record(
+            user_id=current_user.id,
+            api_key_id=api_key_id,
+            endpoint=endpoint,
+            method=method,
+            model_name=model_name,
+            config_type="zai-tts",
+            stream=stream,
+            success=success,
+            status_code=status_code,
+            error_message=error_message,
+            duration_ms=duration_ms,
+            tts_voice_id=voice_id,
+            tts_account_id=account.zai_user_id,
+        )
+
+    if stream:
+        try:
+            audio_generator, _, _ = await zai_tts_service.stream_audio(
+                account=account,
+                input_text=input_text,
+                voice_id=voice_id,
+                speed=float(speed),
+                volume=int(float(volume)),
+            )
+        except Exception as e:
+            await _record_usage(False, 500, str(e))
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+        async def generate():
+            success = True
+            status_code = 200
+            error_message = None
+            try:
+                async for chunk in audio_generator:
+                    yield chunk
+            except Exception as e:
+                success = False
+                status_code = 500
+                error_message = str(e)
+                logger.error("zai-tts stream failed: user_id=%s error=%s", current_user.id, str(e))
+                raise
+            finally:
+                await _record_usage(success, status_code, error_message)
+
+        return StreamingResponse(generate(), media_type="audio/wav")
+
+    try:
+        filepath = await zai_tts_service.generate_file(
+            account=account,
+            input_text=input_text,
+            voice_id=voice_id,
+            speed=float(speed),
+            volume=int(float(volume)),
+        )
+        await _record_usage(True, 200, None)
+        return FileResponse(
+            filepath,
+            media_type="audio/wav",
+            filename=os.path.basename(filepath),
+        )
+    except Exception as e:
+        await _record_usage(False, 500, str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.post(

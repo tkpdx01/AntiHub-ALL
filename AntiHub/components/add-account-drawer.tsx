@@ -21,6 +21,7 @@ import {
   getGeminiCLIOAuthAuthorizeUrl,
   submitGeminiCLIOAuthCallback,
   importGeminiCLIAccount,
+  createZaiTTSAccount,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Button as StatefulButton } from '@/components/ui/stateful-button';
@@ -85,7 +86,7 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
   const [step, setStep] = useState<
     'platform' | 'kiro_provider' | 'method' | 'authorize'
   >('platform');
-  const [platform, setPlatform] = useState<'antigravity' | 'kiro' | 'qwen' | 'codex' | 'gemini' | ''>('');
+  const [platform, setPlatform] = useState<'antigravity' | 'kiro' | 'qwen' | 'codex' | 'gemini' | 'zai-tts' | ''>('');
   const [kiroProvider, setKiroProvider] = useState<'social' | 'aws_idc' | ''>('');
   const [loginMethod, setLoginMethod] = useState<'manual' | 'refresh_token' | ''>(''); // Antigravity 登录方式
   const [kiroLoginMethod, setKiroLoginMethod] = useState<'oauth' | 'refresh_token' | ''>('');
@@ -106,6 +107,10 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
   const [qwenAccountName, setQwenAccountName] = useState('');
   const [codexCredentialJson, setCodexCredentialJson] = useState('');
   const [codexAccountName, setCodexAccountName] = useState('');
+  const [zaiTtsAccountName, setZaiTtsAccountName] = useState('');
+  const [zaiTtsUserId, setZaiTtsUserId] = useState('');
+  const [zaiTtsToken, setZaiTtsToken] = useState('');
+  const [zaiTtsVoiceId, setZaiTtsVoiceId] = useState('system_001');
   const [oauthUrl, setOauthUrl] = useState('');
   const [oauthState, setOauthState] = useState(''); // Kiro OAuth state
   const [callbackUrl, setCallbackUrl] = useState('');
@@ -199,6 +204,10 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
           variant: 'warning',
           position: 'top-right',
         });
+        return;
+      }
+      if (platform === 'zai-tts') {
+        setStep('authorize');
         return;
       }
       if (platform === 'kiro') {
@@ -396,6 +405,8 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
       if (platform === 'qwen') {
         setStep('method');
         setQwenLoginMethod('oauth');
+      } else if (platform === 'zai-tts') {
+        setStep('platform');
       } else if (platform === 'codex') {
         setStep('method');
         setCodexLoginMethod('oauth');
@@ -1583,6 +1594,52 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
     }
   };
 
+  const handleCreateZaiTtsAccount = async () => {
+    const accountName = zaiTtsAccountName.trim() || 'ZAI TTS Account';
+    const userId = zaiTtsUserId.trim();
+    const token = zaiTtsToken.trim();
+    const voiceId = zaiTtsVoiceId.trim() || 'system_001';
+
+    if (!userId || !token) {
+      toasterRef.current?.show({
+        title: '输入错误',
+        message: '请填写 ZAI_USERID 与 ZAI_TOKEN',
+        variant: 'warning',
+        position: 'top-right',
+      });
+      return;
+    }
+
+    try {
+      await createZaiTTSAccount({
+        account_name: accountName,
+        zai_user_id: userId,
+        token,
+        voice_id: voiceId,
+      });
+
+      (toasterRef.current?.show ?? showToast)({
+        title: '添加成功',
+        message: 'ZAI TTS 账号已添加',
+        variant: 'success',
+        position: 'top-right',
+      });
+
+      window.dispatchEvent(new CustomEvent('accountAdded'));
+      onOpenChange(false);
+      resetState();
+      onSuccess?.();
+    } catch (err) {
+      (toasterRef.current?.show ?? showToast)({
+        title: '添加失败',
+        message: err instanceof Error ? err.message : '添加 ZAI TTS 账号失败',
+        variant: 'error',
+        position: 'top-right',
+      });
+      throw err;
+    }
+  };
+
   const resetState = () => {
     // 清除所有定时器
     if (timerRef.current) {
@@ -1616,6 +1673,10 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
     setQwenAccountName('');
     setCodexCredentialJson('');
     setCodexAccountName('');
+    setZaiTtsAccountName('');
+    setZaiTtsUserId('');
+    setZaiTtsToken('');
+    setZaiTtsVoiceId('system_001');
     setGeminiCliCredentialJson('');
     setKiroAwsIdcRegion('us-east-1');
     setOauthUrl('');
@@ -1841,6 +1902,34 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
                       OAuth 登录 / 凭证 JSON 导入
+                    </p>
+                  </div>
+                </label>
+
+                <label
+                  className={cn(
+                    "flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
+                    platform === 'zai-tts' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="platform"
+                    value="zai-tts"
+                    checked={platform === 'zai-tts'}
+                    onChange={(e) => setPlatform(e.target.value as 'zai-tts')}
+                    className="w-4 h-4"
+                  />
+                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                    <OpenAI className="size-6 text-foreground" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">ZAI TTS</h3>
+                      <Badge variant="secondary">可用</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      账号 + Token + 音色ID
                     </p>
                   </div>
                 </label>
@@ -2193,7 +2282,64 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
           {/* 步骤 5: OAuth 授权 */}
           {step === 'authorize' && (
             <div className="space-y-6">
-              {platform === 'codex' ? (
+              {platform === 'zai-tts' ? (
+                <>
+                  <div className="space-y-3">
+                    <Label htmlFor="zai-tts-account-name" className="text-base font-semibold">
+                      账号名称（可选）
+                    </Label>
+                    <Input
+                      id="zai-tts-account-name"
+                      placeholder="给这个账号起个名字（可不填）"
+                      value={zaiTtsAccountName}
+                      onChange={(e) => setZaiTtsAccountName(e.target.value)}
+                      className="h-12"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label htmlFor="zai-tts-user-id" className="text-base font-semibold">
+                      ZAI_USERID
+                    </Label>
+                    <Input
+                      id="zai-tts-user-id"
+                      placeholder="xxxx-yyyy"
+                      value={zaiTtsUserId}
+                      onChange={(e) => setZaiTtsUserId(e.target.value)}
+                      className="font-mono text-sm h-12"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label htmlFor="zai-tts-token" className="text-base font-semibold">
+                      ZAI_TOKEN
+                    </Label>
+                    <Input
+                      id="zai-tts-token"
+                      placeholder="eyJhbGc..."
+                      value={zaiTtsToken}
+                      onChange={(e) => setZaiTtsToken(e.target.value)}
+                      className="font-mono text-sm h-12"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label htmlFor="zai-tts-voice-id" className="text-base font-semibold">
+                      音色ID
+                    </Label>
+                    <Input
+                      id="zai-tts-voice-id"
+                      placeholder="system_001"
+                      value={zaiTtsVoiceId}
+                      onChange={(e) => setZaiTtsVoiceId(e.target.value)}
+                      className="font-mono text-sm h-12"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      默认使用系统自带音色：system_001
+                    </p>
+                  </div>
+                </>
+              ) : platform === 'codex' ? (
                 <>
                   <div className="space-y-3">
                     <Label htmlFor="codex-account-name" className="text-base font-semibold">
@@ -3203,7 +3349,15 @@ export function AddAccountDrawer({ open, onOpenChange, onSuccess }: AddAccountDr
           )}
 
           {step === 'authorize' ? (
-            platform === 'codex' ? (
+            platform === 'zai-tts' ? (
+              <StatefulButton
+                onClick={handleCreateZaiTtsAccount}
+                disabled={!zaiTtsUserId.trim() || !zaiTtsToken.trim() || !zaiTtsVoiceId.trim()}
+                className="flex-1 cursor-pointer"
+              >
+                完成添加
+              </StatefulButton>
+            ) : platform === 'codex' ? (
               codexLoginMethod === 'json' ? (
                 <StatefulButton
                   onClick={handleImportCodexAccount}

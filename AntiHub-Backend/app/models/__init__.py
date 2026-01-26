@@ -10,6 +10,7 @@ from app.models.usage_log import UsageLog
 from app.models.codex_account import CodexAccount
 from app.models.codex_fallback_config import CodexFallbackConfig
 from app.models.gemini_cli_account import GeminiCLIAccount
+from app.models.zai_tts_account import ZaiTTSAccount
 
 __all__ = [
     "User",
@@ -20,4 +21,5 @@ __all__ = [
     "CodexAccount",
     "CodexFallbackConfig",
     "GeminiCLIAccount",
+    "ZaiTTSAccount",
 ]

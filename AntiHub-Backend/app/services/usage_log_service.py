@@ -257,6 +257,8 @@ class UsageLogService:
         status_code: Optional[int] = None,
         error_message: Optional[str] = None,
         duration_ms: int = 0,
+        tts_voice_id: Optional[str] = None,
+        tts_account_id: Optional[str] = None,
     ) -> None:
         """
         写 usage_log（失败也写），写入失败不影响主流程。
@@ -280,6 +282,8 @@ class UsageLogService:
                     status_code=status_code,
                     error_message=_truncate_message(error_message),
                     duration_ms=duration_ms,
+                    tts_voice_id=tts_voice_id,
+                    tts_account_id=tts_account_id,
                 )
                 db.add(log)
                 await db.commit()

@@ -50,6 +50,20 @@ class Settings(BaseSettings):
         description="用于加密存储用户API密钥的密钥"
     )
 
+    # ZAI TTS 配置
+    zai_tts_base_url: str = Field(
+        default="https://audio.z.ai",
+        description="ZAI TTS 上游基础URL",
+    )
+    zai_tts_user_agent: str = Field(
+        default="Mozilla/5.0 AppleWebKit/537.36 Chrome/143 Safari/537",
+        description="ZAI TTS 请求 User-Agent",
+    )
+    zai_tts_file_keep_count: int = Field(
+        default=10,
+        description="非流式音频文件保留数量（启动自动清理）",
+    )
+
     # 管理员账号配置（可选，用于首次初始化）
     admin_username: Optional[str] = Field(
         default=None,
