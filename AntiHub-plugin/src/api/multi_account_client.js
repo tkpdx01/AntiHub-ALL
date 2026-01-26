@@ -25,6 +25,159 @@ class MultiAccountClient {
   constructor() {
   }
 
+  /**
+   * 将 Antigravity 的 SSE（streamGenerateContent?alt=sse）响应合并成非流式的 candidates 结构。
+   *
+   * 背景：参考 CLIProxyAPI 的实现，部分模型（尤其 gemini-3-pro* / claude*）走非流式 generateContent
+   * 会更容易触发 503，这里统一用 SSE 拉取再在本地做一次“流转非流”的拼装。
+   */
+  async parseAntigravitySSEToNonStream(response) {
+    if (!response?.body || typeof response.body.getReader !== 'function') {
+      throw new Error('上游无响应体');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    let role = 'model';
+    let finishReason = 'STOP';
+    const parts = [];
+
+    let pendingKind = '';
+    let pendingText = '';
+    let pendingThoughtSignature = '';
+
+    const flushPending = () => {
+      if (!pendingKind) return;
+
+      const text = pendingText;
+      if (pendingKind === 'text') {
+        if (text.trim() !== '') {
+          parts.push({ text });
+        }
+      } else if (pendingKind === 'thought') {
+        if (text.trim() !== '' || pendingThoughtSignature) {
+          const part = { thought: true, text };
+          if (pendingThoughtSignature) {
+            part.thoughtSignature = pendingThoughtSignature;
+          }
+          parts.push(part);
+        }
+      }
+
+      pendingKind = '';
+      pendingText = '';
+      pendingThoughtSignature = '';
+    };
+
+    const normalizePart = (part) => {
+      const normalized = part && typeof part === 'object' ? { ...part } : {};
+      if (normalized.thought_signature && !normalized.thoughtSignature) {
+        normalized.thoughtSignature = normalized.thought_signature;
+      }
+      delete normalized.thought_signature;
+      if (normalized.inline_data && !normalized.inlineData) {
+        normalized.inlineData = normalized.inline_data;
+      }
+      delete normalized.inline_data;
+      return normalized;
+    };
+
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmedLine = typeof line === 'string' ? line.trim() : '';
+        if (!trimmedLine.startsWith('data:')) continue;
+
+        const jsonStr = trimmedLine.slice('data:'.length).trim();
+        if (!jsonStr || jsonStr === '[DONE]') continue;
+
+        let data;
+        try {
+          data = JSON.parse(jsonStr);
+        } catch {
+          continue;
+        }
+
+        const responseNode = data?.response && typeof data.response === 'object' ? data.response : data;
+        const candidate = responseNode?.candidates?.[0];
+        if (!candidate) continue;
+
+        const candidateRole = candidate?.content?.role;
+        if (typeof candidateRole === 'string' && candidateRole) {
+          role = candidateRole;
+        }
+
+        const fr = candidate?.finishReason;
+        if (typeof fr === 'string' && fr) {
+          finishReason = fr;
+        }
+
+        const chunkParts = candidate?.content?.parts;
+        if (!Array.isArray(chunkParts)) continue;
+
+        for (const rawPart of chunkParts) {
+          const part = rawPart && typeof rawPart === 'object' ? rawPart : {};
+
+          const hasFunctionCall = !!part.functionCall;
+          const hasInlineData = !!(part.inlineData || part.inline_data);
+
+          const isThought = part.thought === true;
+          const hasTextField = Object.prototype.hasOwnProperty.call(part, 'text');
+          const text = typeof part.text === 'string' ? part.text : '';
+          const sig =
+            (typeof part.thoughtSignature === 'string' && part.thoughtSignature) ||
+            (typeof part.thought_signature === 'string' && part.thought_signature) ||
+            '';
+
+          if (hasFunctionCall || hasInlineData) {
+            flushPending();
+            parts.push(normalizePart(part));
+            continue;
+          }
+
+          if (isThought || hasTextField) {
+            const kind = isThought ? 'thought' : 'text';
+            if (pendingKind && pendingKind !== kind) {
+              flushPending();
+            }
+            pendingKind = kind;
+            pendingText += text;
+            if (kind === 'thought' && sig) {
+              pendingThoughtSignature = sig;
+            }
+            continue;
+          }
+
+          flushPending();
+          parts.push(normalizePart(part));
+        }
+      }
+    }
+
+    flushPending();
+
+    return {
+      candidates: [
+        {
+          content: {
+            role,
+            parts,
+          },
+          finishReason,
+        },
+      ],
+    };
+  }
+
   normalizeProjectId(projectId) {
     if (typeof projectId !== 'string') return '';
     return projectId.trim();
@@ -747,12 +900,15 @@ class MultiAccountClient {
     const models = data?.models || {};
     return {
       object: 'list',
-      data: Object.keys(models).map(id => ({
-        id,
-        object: 'model',
-        created: Math.floor(Date.now() / 1000),
-        owned_by: 'google'
-      }))
+      // chat_* 是 Antigravity 上游暴露的内部补全模型，本项目不支持（避免用户误用直接过滤）
+      data: Object.keys(models)
+        .filter(id => typeof id === 'string' && !id.startsWith('chat_'))
+        .map(id => ({
+          id,
+          object: 'model',
+          created: Math.floor(Date.now() / 1000),
+          owned_by: 'google'
+        }))
     };
   }
 
@@ -911,13 +1067,16 @@ class MultiAccountClient {
     
     // 获取当前端点配置
     const endpoint = getApiEndpoint(endpointIndex);
-    const url = endpoint.imageUrl;
+    // 参考 CLIProxyAPI：gemini-3-pro* / claude* 更倾向用 SSE 拉取再本地合并，降低 generateContent 503 概率
+    const useStream = model_name.includes('claude') || model_name.includes('gemini-3-pro');
+    const url = useStream ? endpoint.url : endpoint.imageUrl;
     
     const requestHeaders = {
       'Host': endpoint.host,
       'User-Agent': config.api.userAgent,
       'Authorization': `Bearer ${account.access_token}`,
       'Content-Type': 'application/json',
+      ...(useStream ? { 'Accept': 'text/event-stream' } : {}),
       'Accept-Encoding': 'gzip'
     };
     
@@ -946,6 +1105,17 @@ class MultiAccountClient {
 
       if (!response.ok) {
         const responseText = await response.text();
+
+        // 503 大概率是端点侧瞬时故障/模型侧不稳定，优先切换端点重试
+        if (response.status === 503) {
+          const nextEndpointIndex = endpointIndex + 1;
+          const totalEndpoints = getEndpointCount();
+
+          if (nextEndpointIndex < totalEndpoints) {
+            logger.warn(`[图片生成-503错误] 端点[${endpointIndex}]返回503，尝试切换到端点[${nextEndpointIndex}]: cookie_id=${account.cookie_id}`);
+            return await this.generateImage(requestBody, user_id, model_name, user, account, excludeCookieIds, retryCount, nextEndpointIndex, firstError403Type, projectRetryCount);
+          }
+        }
 
         if (response.status === 403) {
           // 判断是否是 "The caller does not have permission" 错误
@@ -1115,12 +1285,14 @@ class MultiAccountClient {
       throw error;
     }
 
-    // 解析响应 (非流式JSON格式)
-    const responseData = await response.json();
-    
-    // 上游响应格式是 { response: { candidates: [...] } }
-    // 需要从 response 字段中提取数据
-    const responseObj = responseData.response || responseData;
+    // 解析响应：默认走非流式 JSON；gemini-3-pro* / claude* 走 SSE 并在本地合并为非流式结构
+    let responseObj;
+    if (useStream) {
+      responseObj = await this.parseAntigravitySSEToNonStream(response);
+    } else {
+      const responseData = await response.json();
+      responseObj = responseData.response || responseData;
+    }
     const candidates = responseObj.candidates || [];
     const collectedParts = candidates[0]?.content?.parts || [];
     const lastFinishReason = candidates[0]?.finishReason || 'STOP';
