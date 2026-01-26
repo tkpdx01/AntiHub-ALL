@@ -32,11 +32,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { IconCopy, IconKey, IconTrash, IconEye, IconEyeOff, IconSettings, IconPlus, IconInfoCircle, IconAlertTriangle } from '@tabler/icons-react';
+import { IconCopy, IconKey, IconTrash, IconEye, IconEyeOff, IconSettings, IconPlus, IconInfoCircle, IconAlertTriangle, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { MorphingSquare } from '@/components/ui/morphing-square';
 import { cn } from '@/lib/utils';
 import Toaster, { ToasterRef } from '@/components/ui/toast';
 import { getPublicApiBaseUrl } from '@/lib/apiBase';
+
+const CONFIG_TYPE_PAGE_SIZE = 3;
+const CONFIG_TYPE_ORDER = [
+  'antigravity',
+  'kiro',
+  'qwen',
+  'zai-tts',
+  'codex',
+  'gemini-cli',
+] as const;
 
 export default function SettingsPage() {
   const toasterRef = useRef<ToasterRef>(null);
@@ -49,6 +59,7 @@ export default function SettingsPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [deletingKeyId, setDeletingKeyId] = useState<number | null>(null);
   const [selectedConfigType, setSelectedConfigType] = useState<'antigravity' | 'kiro' | 'qwen' | 'codex' | 'gemini-cli' | 'zai-tts'>('antigravity');
+  const [configTypePage, setConfigTypePage] = useState(0);
   const [keyName, setKeyName] = useState('');
   const [currentUser, setCurrentUser] = useState<UserResponse | null>(null);
 
@@ -60,6 +71,12 @@ export default function SettingsPage() {
   const [newSubscription, setNewSubscription] = useState('');
 
   const [apiEndpoint, setApiEndpoint] = useState(() => getPublicApiBaseUrl());
+
+  const configTypeTotalPages = Math.ceil(CONFIG_TYPE_ORDER.length / CONFIG_TYPE_PAGE_SIZE);
+  const visibleConfigTypes = CONFIG_TYPE_ORDER.slice(
+    configTypePage * CONFIG_TYPE_PAGE_SIZE,
+    (configTypePage + 1) * CONFIG_TYPE_PAGE_SIZE
+  );
 
   // CodexCLI 兜底服务（当 Codex 账号全部冻结/不可用时，转发到自定义 /responses 上游）
   const [codexFallbackBaseUrl, setCodexFallbackBaseUrl] = useState('');
@@ -75,6 +92,12 @@ export default function SettingsPage() {
     if (/^https?:\/\//i.test(base)) return;
     setApiEndpoint(`${window.location.origin}${base}`);
   }, []);
+
+  useEffect(() => {
+    if (!isCreateDialogOpen) return;
+    const index = CONFIG_TYPE_ORDER.indexOf(selectedConfigType);
+    setConfigTypePage(index >= 0 ? Math.floor(index / CONFIG_TYPE_PAGE_SIZE) : 0);
+  }, [isCreateDialogOpen, selectedConfigType]);
 
   const loadAPIKeys = async () => {
     try {
@@ -807,8 +830,41 @@ export default function SettingsPage() {
             <div className="space-y-3">
               <Label>类型</Label>
 
+              {configTypeTotalPages > 1 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    第 {configTypePage + 1} / {configTypeTotalPages} 页
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setConfigTypePage((prev) => Math.max(0, prev - 1))}
+                      disabled={configTypePage === 0}
+                      aria-label="上一页"
+                    >
+                      <IconChevronLeft className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() =>
+                        setConfigTypePage((prev) => Math.min(configTypeTotalPages - 1, prev + 1))
+                      }
+                      disabled={configTypePage >= configTypeTotalPages - 1}
+                      aria-label="下一页"
+                    >
+                      <IconChevronRight className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Antigravity */}
               <label
+                hidden={!visibleConfigTypes.includes('antigravity')}
                 className={cn(
                   "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
                   selectedConfigType === 'antigravity' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
@@ -835,6 +891,7 @@ export default function SettingsPage() {
 
               {/* Kiro */}
               <label
+                hidden={!visibleConfigTypes.includes('kiro')}
                 className={cn(
                   "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
                   selectedConfigType === 'kiro'
@@ -862,6 +919,7 @@ export default function SettingsPage() {
 
               {/* Qwen */}
               <label
+                hidden={!visibleConfigTypes.includes('qwen')}
                 className={cn(
                   "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
                   selectedConfigType === 'qwen'
@@ -889,6 +947,7 @@ export default function SettingsPage() {
 
               {/* ZAI TTS */}
               <label
+                hidden={!visibleConfigTypes.includes('zai-tts')}
                 className={cn(
                   "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
                   selectedConfigType === 'zai-tts'
@@ -916,6 +975,7 @@ export default function SettingsPage() {
 
               {/* Codex */}
               <label
+                hidden={!visibleConfigTypes.includes('codex')}
                 className={cn(
                   "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
                   selectedConfigType === 'codex'
@@ -943,6 +1003,7 @@ export default function SettingsPage() {
 
               {/* GeminiCLI */}
               <label
+                hidden={!visibleConfigTypes.includes('gemini-cli')}
                 className={cn(
                   "flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors",
                   selectedConfigType === 'gemini-cli'
