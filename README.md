@@ -62,7 +62,7 @@ docker compose -f docker-compose.yml -f docker/docker-compose.db-init.yml run --
 cp .env.example .env
 ```
 
-**⚠️ 重要提示**：`.env.example` 中包含示例密钥，仅用于开发/测试。生产环境部署时，请务必生成新的密钥：
+**重要提示**：`.env.example` 中包含示例密钥，仅用于开发/测试。生产环境部署时，请务必生成新的密钥：
 
 ```bash
 # 生成加密密钥
@@ -104,4 +104,5 @@ docker compose up -d
 - [KiroGate](https://github.com/aliom-v/KiroGate) - Kiro渠道的Token导入、思考支持
 - [AIClient-2-API](https://github.com/justlovemaki/AIClient-2-API) - Kiro AWS IMA账户导入代码
 - [ZAI-TTS2API](https://github.com/aahl/zai-tts2api) - ZAI-TTS对接代码
+
 - [Kiro.rs](https://github.com/hank9999/kiro.rs) - CC2.1.19新字段解析方法代码
