@@ -35,7 +35,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
 -- Name: get_user_shared_cookie_count(character varying); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_user_shared_cookie_count(p_user_id character varying) RETURNS integer
+CREATE OR REPLACE FUNCTION public.get_user_shared_cookie_count(p_user_id character varying) RETURNS integer
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -56,7 +56,7 @@ $$;
 -- Name: update_updated_at_column(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.update_updated_at_column() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.update_updated_at_column() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -72,7 +72,7 @@ $$;
 -- Name: update_user_shared_quota_max(character varying, character varying); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.update_user_shared_quota_max(p_user_id character varying, p_model_name character varying) RETURNS void
+CREATE OR REPLACE FUNCTION public.update_user_shared_quota_max(p_user_id character varying, p_model_name character varying) RETURNS void
     LANGUAGE plpgsql
     AS $$
 DECLARE

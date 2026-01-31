@@ -83,7 +83,7 @@ else
     echo "📊 数据库未初始化，开始导入 schema.sql..."
 
     if [ -f "$SCHEMA_FILE" ]; then
-        schema_out=$(psql -v ON_ERROR_STOP=1 -f "$SCHEMA_FILE" 2>&1)
+        schema_out=$(psql -X -v ON_ERROR_STOP=1 --single-transaction -f "$SCHEMA_FILE" 2>&1)
         if [ $? -eq 0 ]; then
             echo "✅ 数据库初始化成功！"
         else
