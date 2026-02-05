@@ -13,8 +13,8 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      background: #0f0f0f;
-      color: #e0e0e0;
+      background: #f5f5f5;
+      color: #333;
       min-height: 100vh;
       line-height: 1.5;
     }
@@ -25,20 +25,21 @@
       justify-content: space-between;
       align-items: center;
       padding: 16px 24px;
-      background: #1a1a1a;
-      border-bottom: 1px solid #2a2a2a;
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
     .header h1 {
       font-size: 20px;
       font-weight: 600;
-      color: #fff;
+      color: #333;
     }
 
     .logout-btn {
       background: transparent;
-      border: 1px solid #444;
-      color: #aaa;
+      border: 1px solid #ddd;
+      color: #666;
       padding: 8px 16px;
       border-radius: 6px;
       cursor: pointer;
@@ -46,8 +47,8 @@
     }
 
     .logout-btn:hover {
-      background: #2a2a2a;
-      color: #fff;
+      background: #f0f0f0;
+      color: #333;
     }
 
     /* Main Content */
@@ -72,22 +73,23 @@
     }
 
     .stat-card {
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
+      background: #fff;
+      border: 1px solid #e0e0e0;
       border-radius: 8px;
       padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
     .stat-card .label {
       font-size: 13px;
-      color: #888;
+      color: #666;
       margin-bottom: 8px;
     }
 
     .stat-card .value {
       font-size: 28px;
       font-weight: 600;
-      color: #fff;
+      color: #333;
     }
 
     .stat-card .value.skeleton {
@@ -98,18 +100,19 @@
 
     /* Section */
     .section {
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
+      background: #fff;
+      border: 1px solid #e0e0e0;
       border-radius: 8px;
       margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
     .section-header {
       padding: 16px 20px;
-      border-bottom: 1px solid #2a2a2a;
+      border-bottom: 1px solid #e0e0e0;
       font-size: 15px;
       font-weight: 600;
-      color: #fff;
+      color: #333;
     }
 
     .section-body {
@@ -130,26 +133,28 @@
     }
 
     .channel-card {
-      background: #222;
+      background: #f9f9f9;
       border-radius: 8px;
       padding: 16px;
+      border: 1px solid #eee;
     }
 
     .channel-card .name {
       font-size: 14px;
       font-weight: 600;
-      color: #fff;
+      color: #333;
       margin-bottom: 12px;
     }
 
     .channel-card .stat {
       font-size: 13px;
-      color: #aaa;
+      color: #666;
       margin-bottom: 4px;
     }
 
     .channel-card .stat span {
-      color: #4ade80;
+      color: #16a34a;
+      font-weight: 600;
     }
 
     .channel-card .stat.skeleton {
@@ -173,37 +178,38 @@
     th {
       text-align: left;
       padding: 12px 16px;
-      color: #888;
+      color: #666;
       font-weight: 500;
-      border-bottom: 1px solid #2a2a2a;
+      border-bottom: 1px solid #e0e0e0;
+      background: #f9f9f9;
     }
 
     td {
       padding: 12px 16px;
-      border-bottom: 1px solid #222;
+      border-bottom: 1px solid #eee;
     }
 
     tr:hover {
-      background: #1f1f1f;
+      background: #f5f5f5;
     }
 
     .status-success {
-      color: #4ade80;
+      color: #16a34a;
     }
 
     .status-error {
-      color: #f87171;
+      color: #dc2626;
     }
 
     .empty-state {
       text-align: center;
       padding: 40px;
-      color: #666;
+      color: #999;
     }
 
     /* Skeleton Animation */
     .skeleton {
-      background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+      background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
       background-size: 200% 100%;
       animation: shimmer 1.5s infinite;
     }
@@ -217,7 +223,7 @@
       display: flex;
       gap: 16px;
       padding: 12px 16px;
-      border-bottom: 1px solid #222;
+      border-bottom: 1px solid #eee;
     }
 
     .skeleton-cell {
@@ -233,9 +239,9 @@
 
     /* Error State */
     .error-banner {
-      background: #2d1f1f;
-      border: 1px solid #5c2828;
-      color: #f87171;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
       padding: 12px 16px;
       border-radius: 8px;
       margin-bottom: 24px;
@@ -259,8 +265,438 @@
     }
 
     .refresh-btn:disabled {
-      background: #444;
+      background: #ccc;
       cursor: not-allowed;
+    }
+
+    /* Navigation Tabs */
+    .nav-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 0 24px;
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .nav-tab {
+      padding: 12px 20px;
+      background: transparent;
+      border: none;
+      color: #666;
+      font-size: 14px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+
+    .nav-tab:hover {
+      color: #333;
+    }
+
+    .nav-tab.active {
+      color: #2563eb;
+      border-bottom-color: #2563eb;
+      font-weight: 500;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    /* Form Styles */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      color: #333;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .form-input:focus {
+      border-color: #2563eb;
+      background: #fff;
+    }
+
+    .form-select {
+      width: 100%;
+      padding: 10px 12px;
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      color: #333;
+      font-size: 14px;
+      outline: none;
+    }
+
+    /* Button Styles */
+    .btn {
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+
+    .btn-secondary:hover {
+      background: #e5e5e5;
+    }
+
+    .btn-danger {
+      background: #dc2626;
+      color: #fff;
+    }
+
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+
+    /* Account List */
+    .account-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .account-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background: #f9f9f9;
+      border: 1px solid #eee;
+      border-radius: 8px;
+    }
+
+    .account-info {
+      flex: 1;
+    }
+
+    .account-name {
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .account-meta {
+      font-size: 13px;
+      color: #666;
+    }
+
+    .account-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .badge-success {
+      background: #dcfce7;
+      color: #16a34a;
+    }
+
+    .badge-error {
+      background: #fef2f2;
+      color: #dc2626;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #999;
+      cursor: pointer;
+    }
+
+    .modal-close:hover {
+      color: #333;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    /* Settings */
+    .settings-section {
+      margin-bottom: 32px;
+    }
+
+    .settings-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    /* Theme Toggle */
+    .theme-toggle {
+      display: flex;
+      gap: 8px;
+    }
+
+    .theme-btn {
+      padding: 8px 16px;
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .theme-btn.active {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+    }
+
+    /* Dark Theme */
+    body.dark {
+      background: #0f0f0f;
+      color: #e0e0e0;
+    }
+
+    body.dark .header {
+      background: #1a1a1a;
+      border-color: #2a2a2a;
+    }
+
+    body.dark .header h1 {
+      color: #fff;
+    }
+
+    body.dark .nav-tabs {
+      background: #1a1a1a;
+      border-color: #2a2a2a;
+    }
+
+    body.dark .nav-tab {
+      color: #aaa;
+    }
+
+    body.dark .nav-tab:hover {
+      color: #fff;
+    }
+
+    body.dark .nav-tab.active {
+      color: #60a5fa;
+      border-color: #60a5fa;
+    }
+
+    body.dark .stat-card,
+    body.dark .section {
+      background: #1a1a1a;
+      border-color: #2a2a2a;
+    }
+
+    body.dark .stat-card .label {
+      color: #888;
+    }
+
+    body.dark .stat-card .value {
+      color: #fff;
+    }
+
+    body.dark .section-header {
+      color: #fff;
+      border-color: #2a2a2a;
+    }
+
+    body.dark .channel-card {
+      background: #222;
+      border-color: #333;
+    }
+
+    body.dark .channel-card .name {
+      color: #fff;
+    }
+
+    body.dark .channel-card .stat {
+      color: #aaa;
+    }
+
+    body.dark .channel-card .stat span {
+      color: #4ade80;
+    }
+
+    body.dark th {
+      background: #222;
+      color: #888;
+      border-color: #2a2a2a;
+    }
+
+    body.dark td {
+      border-color: #2a2a2a;
+    }
+
+    body.dark tr:hover {
+      background: #1f1f1f;
+    }
+
+    body.dark .skeleton {
+      background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    }
+
+    body.dark .error-banner {
+      background: #2d1f1f;
+      border-color: #5c2828;
+      color: #f87171;
+    }
+
+    body.dark .logout-btn {
+      border-color: #444;
+      color: #aaa;
+    }
+
+    body.dark .logout-btn:hover {
+      background: #2a2a2a;
+      color: #fff;
+    }
+
+    body.dark .account-item {
+      background: #222;
+      border-color: #333;
+    }
+
+    body.dark .account-name {
+      color: #fff;
+    }
+
+    body.dark .account-meta {
+      color: #888;
+    }
+
+    body.dark .form-input,
+    body.dark .form-select {
+      background: #222;
+      border-color: #333;
+      color: #fff;
+    }
+
+    body.dark .form-input:focus {
+      background: #1a1a1a;
+    }
+
+    body.dark .modal {
+      background: #1a1a1a;
+    }
+
+    body.dark .modal-title {
+      color: #fff;
+    }
+
+    body.dark .settings-title {
+      color: #fff;
+      border-color: #333;
+    }
+
+    body.dark .form-label {
+      color: #aaa;
+    }
+
+    body.dark .btn-secondary {
+      background: #333;
+      color: #fff;
+      border-color: #444;
+    }
+
+    body.dark .theme-btn {
+      background: #222;
+      border-color: #333;
+      color: #aaa;
+    }
+
+    body.dark .theme-btn.active {
+      background: #2563eb;
+      color: #fff;
     }
   </style>
 </head>
@@ -268,33 +704,41 @@
   <header class="header">
     <h1>AntiHub Dashboard</h1>
     <div>
-      <button class="refresh-btn" onclick="loadDashboard()" id="refreshBtn">刷新</button>
+      <button class="refresh-btn" onclick="refreshCurrentPage()" id="refreshBtn">刷新</button>
       <button class="logout-btn" onclick="logout()">退出登录</button>
     </div>
   </header>
 
+  <nav class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('dashboard')">概览</button>
+    <button class="nav-tab" onclick="showPage('accounts')">账号管理</button>
+    <button class="nav-tab" onclick="showPage('settings')">设置</button>
+  </nav>
+
   <main class="main">
     <div class="error-banner" id="errorBanner"></div>
 
-    <!-- Stats Cards -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="label">总账号</div>
-        <div class="value skeleton" id="totalAccounts"></div>
+    <!-- Dashboard Page -->
+    <div class="page active" id="page-dashboard">
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="label">总账号</div>
+          <div class="value skeleton" id="totalAccounts"></div>
+        </div>
+        <div class="stat-card">
+          <div class="label">活跃账号</div>
+          <div class="value skeleton" id="activeAccounts"></div>
+        </div>
+        <div class="stat-card">
+          <div class="label">24h 消耗 ($)</div>
+          <div class="value skeleton" id="totalCost"></div>
+        </div>
+        <div class="stat-card">
+          <div class="label">24h 调用</div>
+          <div class="value skeleton" id="totalCalls"></div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="label">活跃账号</div>
-        <div class="value skeleton" id="activeAccounts"></div>
-      </div>
-      <div class="stat-card">
-        <div class="label">24h 消耗 ($)</div>
-        <div class="value skeleton" id="totalCost"></div>
-      </div>
-      <div class="stat-card">
-        <div class="label">24h 调用</div>
-        <div class="value skeleton" id="totalCalls"></div>
-      </div>
-    </div>
 
     <!-- Channel Overview -->
     <div class="section">
@@ -358,7 +802,77 @@
         </div>
       </div>
     </div>
+    </div><!-- End Dashboard Page -->
+
+    <!-- Accounts Page -->
+    <div class="page" id="page-accounts">
+      <div class="section">
+        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>账号管理</span>
+          <select class="form-select" style="width: auto;" id="channelSelect" onchange="loadAccounts()">
+            <option value="antigravity">Antigravity</option>
+            <option value="kiro">Kiro</option>
+            <option value="qwen">Qwen</option>
+            <option value="codex">Codex</option>
+          </select>
+        </div>
+        <div class="section-body">
+          <div class="account-list" id="accountList">
+            <div class="empty-state">选择渠道查看账号</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Page -->
+    <div class="page" id="page-settings">
+      <div class="section">
+        <div class="section-header">设置</div>
+        <div class="section-body">
+          <div class="settings-section">
+            <div class="settings-title">主题</div>
+            <div class="theme-toggle">
+              <button class="theme-btn active" onclick="setTheme('light')" id="theme-light">亮色</button>
+              <button class="theme-btn" onclick="setTheme('dark')" id="theme-dark">暗色</button>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <div class="settings-title">API 设置</div>
+            <div class="form-group">
+              <label class="form-label">后端地址</label>
+              <input type="text" class="form-input" id="backendUrl" value="/backend" placeholder="/backend">
+            </div>
+            <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </main>
+
+  <!-- Add Account Modal -->
+  <div class="modal-overlay" id="addAccountModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">添加账号</div>
+        <button class="modal-close" onclick="closeModal('addAccountModal')">&times;</button>
+      </div>
+      <form id="addAccountForm" onsubmit="submitAddAccount(event)">
+        <div class="form-group">
+          <label class="form-label">账号名称</label>
+          <input type="text" class="form-input" id="accountName" placeholder="My Account">
+        </div>
+        <div class="form-group" id="refreshTokenGroup">
+          <label class="form-label">Refresh Token</label>
+          <input type="text" class="form-input" id="refreshToken" placeholder="refresh_token">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('addAccountModal')">取消</button>
+          <button type="submit" class="btn btn-primary">添加</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <script>
     // API Helper
@@ -417,31 +931,45 @@
       return cost.toFixed(4);
     }
 
+    // Normalize API response to array
+    function toArray(data) {
+      if (!data) return [];
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.accounts)) return data.accounts;
+      if (Array.isArray(data.data)) return data.data;
+      if (Array.isArray(data.items)) return data.items;
+      return [];
+    }
+
     // Render stats
     function renderStats(data) {
-      const { antigravity, kiro, qwen, codex, antigravityConsumption, kiroStats, qwenStats, codexStats } = data;
+      const antigravity = toArray(data.antigravity);
+      const kiro = toArray(data.kiro);
+      const qwen = toArray(data.qwen);
+      const codex = toArray(data.codex);
+      const { antigravityConsumption, kiroStats, qwenStats, codexStats } = data;
 
       // Calculate totals
       const totalAccounts =
-        (antigravity?.length || 0) +
-        (kiro?.length || 0) +
-        (qwen?.length || 0) +
-        (codex?.length || 0);
+        antigravity.length +
+        kiro.length +
+        qwen.length +
+        codex.length;
 
-      const activeAntigravity = antigravity?.filter(a => a.is_active !== false)?.length || 0;
-      const activeKiro = kiro?.filter(a => a.is_active !== false)?.length || 0;
-      const activeQwen = qwen?.filter(a => a.is_active !== false)?.length || 0;
-      const activeCodex = codex?.filter(a => a.is_active !== false)?.length || 0;
+      const activeAntigravity = antigravity.filter(a => a.is_active !== false && a.status !== 0).length;
+      const activeKiro = kiro.filter(a => a.is_active !== false && a.status !== 0).length;
+      const activeQwen = qwen.filter(a => a.is_active !== false && a.status !== 0).length;
+      const activeCodex = codex.filter(a => a.is_active !== false && a.status !== 0).length;
       const activeAccounts = activeAntigravity + activeKiro + activeQwen + activeCodex;
 
       // 24h consumption (from Antigravity quotas)
       const antigravityCost = antigravityConsumption?.total_cost || 0;
 
-      // 24h calls
+      // 24h calls - extract from nested data structure
       const antigravityCalls = antigravityConsumption?.total_requests || 0;
-      const kiroCalls = kiroStats?.total_requests || 0;
-      const qwenCalls = qwenStats?.total_requests || 0;
-      const codexCalls = codexStats?.total_requests || 0;
+      const kiroCalls = kiroStats?.total_requests || kiroStats?.data?.total_requests || 0;
+      const qwenCalls = qwenStats?.data?.total_requests || qwenStats?.total_requests || 0;
+      const codexCalls = codexStats?.data?.total_requests || codexStats?.total_requests || 0;
       const totalCalls = antigravityCalls + kiroCalls + qwenCalls + codexCalls;
 
       // Update stats cards
@@ -460,7 +988,7 @@
       // Update channel cards
       // Antigravity
       document.getElementById('antigravityStat1').innerHTML =
-        `<span>${activeAntigravity}</span>/${antigravity?.length || 0} 活跃`;
+        `<span>${activeAntigravity}</span>/${antigravity.length} 活跃`;
       document.getElementById('antigravityStat1').classList.remove('skeleton');
       document.getElementById('antigravityStat2').textContent =
         `24h: ${antigravityCalls} 次`;
@@ -468,7 +996,7 @@
 
       // Kiro
       document.getElementById('kiroStat1').innerHTML =
-        `<span>${activeKiro}</span>/${kiro?.length || 0} 活跃`;
+        `<span>${activeKiro}</span>/${kiro.length} 活跃`;
       document.getElementById('kiroStat1').classList.remove('skeleton');
       document.getElementById('kiroStat2').textContent =
         `24h: ${kiroCalls} 次`;
@@ -476,7 +1004,7 @@
 
       // Qwen
       document.getElementById('qwenStat1').innerHTML =
-        `<span>${activeQwen}</span>/${qwen?.length || 0} 活跃`;
+        `<span>${activeQwen}</span>/${qwen.length} 活跃`;
       document.getElementById('qwenStat1').classList.remove('skeleton');
       document.getElementById('qwenStat2').textContent =
         `24h: ${qwenCalls} 次`;
@@ -484,7 +1012,7 @@
 
       // Codex
       document.getElementById('codexStat1').innerHTML =
-        `<span>${activeCodex}</span>/${codex?.length || 0} 活跃`;
+        `<span>${activeCodex}</span>/${codex.length} 活跃`;
       document.getElementById('codexStat1').classList.remove('skeleton');
       document.getElementById('codexStat2').textContent =
         `24h: ${codexCalls} 次`;
@@ -493,73 +1021,15 @@
 
     // Render recent calls
     function renderRecentCalls(data) {
-      const { antigravityConsumption, kiroStats, qwenStats, codexStats } = data;
+      const { recentLogs } = data;
 
-      // Collect all recent calls
-      const calls = [];
-
-      // Antigravity calls (from consumption details)
-      if (antigravityConsumption?.details) {
-        antigravityConsumption.details.forEach(d => {
-          calls.push({
-            time: d.timestamp || d.created_at,
-            channel: 'Antigravity',
-            model: d.model || '-',
-            cost: d.cost,
-            success: true
-          });
-        });
-      }
-
-      // Kiro calls
-      if (kiroStats?.recent_requests) {
-        kiroStats.recent_requests.forEach(r => {
-          calls.push({
-            time: r.created_at,
-            channel: 'Kiro',
-            model: r.model || '-',
-            cost: null,
-            success: r.success !== false
-          });
-        });
-      }
-
-      // Qwen calls
-      if (qwenStats?.recent_requests) {
-        qwenStats.recent_requests.forEach(r => {
-          calls.push({
-            time: r.created_at,
-            channel: 'Qwen',
-            model: r.model || '-',
-            cost: null,
-            success: r.success !== false
-          });
-        });
-      }
-
-      // Codex calls
-      if (codexStats?.recent_requests) {
-        codexStats.recent_requests.forEach(r => {
-          calls.push({
-            time: r.created_at,
-            channel: 'Codex',
-            model: r.model || '-',
-            cost: null,
-            success: r.success !== false
-          });
-        });
-      }
-
-      // Sort by time descending
-      calls.sort((a, b) => new Date(b.time) - new Date(a.time));
-
-      // Take top 30
-      const recentCalls = calls.slice(0, 30);
+      // Get logs from the API response
+      const logs = recentLogs?.data?.logs || [];
 
       // Render table
       const tbody = document.getElementById('recentCalls');
 
-      if (recentCalls.length === 0) {
+      if (logs.length === 0) {
         tbody.innerHTML = `
           <tr>
             <td colspan="5" class="empty-state">暂无调用记录</td>
@@ -568,14 +1038,14 @@
         return;
       }
 
-      tbody.innerHTML = recentCalls.map(call => `
+      tbody.innerHTML = logs.map(log => `
         <tr>
-          <td>${formatTime(call.time)}</td>
-          <td>${call.channel}</td>
-          <td>${call.model}</td>
-          <td>${formatCost(call.cost)}</td>
-          <td class="${call.success ? 'status-success' : 'status-error'}">
-            ${call.success ? '✓' : '✗'}
+          <td>${formatTime(log.created_at)}</td>
+          <td>${log.config_type || '-'}</td>
+          <td>${log.model_name || '-'}</td>
+          <td>${formatCost(log.quota_consumed)}</td>
+          <td class="${log.success ? 'status-success' : 'status-error'}">
+            ${log.success ? '✓' : '✗'}
           </td>
         </tr>
       `).join('');
@@ -589,7 +1059,7 @@
 
       try {
         // Parallel fetch all data
-        const [antigravity, kiro, qwen, codex, antigravityConsumption, kiroStats, qwenStats, codexStats] =
+        const [antigravity, kiro, qwen, codex, antigravityConsumption, kiroStats, qwenStats, codexStats, recentLogs] =
           await Promise.all([
             fetchAPI('/api/accounts').catch(() => []),
             fetchAPI('/api/kiro/accounts').catch(() => []),
@@ -597,8 +1067,9 @@
             fetchAPI('/api/codex/accounts').catch(() => []),
             fetchAPI('/api/quotas/consumption').catch(() => ({})),
             fetchAPI('/api/kiro/consumption/stats').catch(() => ({})),
-            fetchAPI('/api/request-usage/stats?config_type=qwen').catch(() => ({})),
-            fetchAPI('/api/request-usage/stats?config_type=codex').catch(() => ({})),
+            fetchAPI('/api/usage/requests/stats?config_type=qwen').catch(() => ({})),
+            fetchAPI('/api/usage/requests/stats?config_type=codex').catch(() => ({})),
+            fetchAPI('/api/usage/requests/logs?limit=30').catch(() => ({})),
           ]);
 
         const data = {
@@ -609,7 +1080,8 @@
           antigravityConsumption,
           kiroStats,
           qwenStats,
-          codexStats
+          codexStats,
+          recentLogs
         };
 
         renderStats(data);
@@ -630,7 +1102,172 @@
         window.location.href = '/login.html';
         return;
       }
+      // Load saved theme
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      setTheme(savedTheme);
       loadDashboard();
+    }
+
+    // Page navigation
+    let currentPage = 'dashboard';
+
+    function showPage(page) {
+      currentPage = page;
+      // Update tabs
+      document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+      document.querySelector(`.nav-tab[onclick="showPage('${page}')"]`).classList.add('active');
+      // Update pages
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById(`page-${page}`).classList.add('active');
+      // Load page data
+      if (page === 'accounts') {
+        loadAccounts();
+      }
+    }
+
+    function refreshCurrentPage() {
+      if (currentPage === 'dashboard') {
+        loadDashboard();
+      } else if (currentPage === 'accounts') {
+        loadAccounts();
+      }
+    }
+
+    // Theme
+    function setTheme(theme) {
+      if (theme === 'dark') {
+        document.body.classList.add('dark');
+      } else {
+        document.body.classList.remove('dark');
+      }
+      localStorage.setItem('theme', theme);
+      // Update buttons
+      document.getElementById('theme-light').classList.toggle('active', theme === 'light');
+      document.getElementById('theme-dark').classList.toggle('active', theme === 'dark');
+    }
+
+    // Settings
+    function saveSettings() {
+      const backendUrl = document.getElementById('backendUrl').value;
+      localStorage.setItem('backendUrl', backendUrl);
+      alert('设置已保存');
+    }
+
+    // Account Management
+    async function loadAccounts() {
+      const channel = document.getElementById('channelSelect').value;
+      const listEl = document.getElementById('accountList');
+      listEl.innerHTML = '<div class="empty-state">加载中...</div>';
+
+      try {
+        let endpoint = '';
+        switch (channel) {
+          case 'antigravity': endpoint = '/api/accounts'; break;
+          case 'kiro': endpoint = '/api/kiro/accounts'; break;
+          case 'qwen': endpoint = '/api/qwen/accounts'; break;
+          case 'codex': endpoint = '/api/codex/accounts'; break;
+        }
+
+        const data = await fetchAPI(endpoint);
+        const accounts = toArray(data);
+
+        if (accounts.length === 0) {
+          listEl.innerHTML = '<div class="empty-state">暂无账号</div>';
+          return;
+        }
+
+        listEl.innerHTML = accounts.map(acc => {
+          const name = acc.account_name || acc.name || acc.email || `账号 ${acc.id}`;
+          const isActive = acc.is_active !== false && acc.status !== 0;
+          const statusBadge = isActive
+            ? '<span class="badge badge-success">活跃</span>'
+            : '<span class="badge badge-error">禁用</span>';
+
+          return `
+            <div class="account-item">
+              <div class="account-info">
+                <div class="account-name">${name} ${statusBadge}</div>
+                <div class="account-meta">ID: ${acc.id || acc.cookie_id || '-'}</div>
+              </div>
+              <div class="account-actions">
+                <button class="btn btn-sm btn-secondary" onclick="toggleAccountStatus('${channel}', '${acc.id || acc.cookie_id}', ${isActive ? 0 : 1})">
+                  ${isActive ? '禁用' : '启用'}
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="deleteAccount('${channel}', '${acc.id || acc.cookie_id}')">删除</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (err) {
+        listEl.innerHTML = `<div class="empty-state">加载失败: ${err.message}</div>`;
+      }
+    }
+
+    async function toggleAccountStatus(channel, accountId, newStatus) {
+      try {
+        let endpoint = '';
+        switch (channel) {
+          case 'antigravity': endpoint = `/api/accounts/${accountId}/status`; break;
+          case 'kiro': endpoint = `/api/kiro/accounts/${accountId}/status`; break;
+          case 'qwen': endpoint = `/api/qwen/accounts/${accountId}/status`; break;
+          case 'codex': endpoint = `/api/codex/accounts/${accountId}/status`; break;
+        }
+
+        const token = localStorage.getItem('token');
+        await fetch(`/backend${endpoint}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ status: newStatus })
+        });
+
+        loadAccounts();
+      } catch (err) {
+        alert('操作失败: ' + err.message);
+      }
+    }
+
+    async function deleteAccount(channel, accountId) {
+      if (!confirm('确定要删除此账号吗？')) return;
+
+      try {
+        let endpoint = '';
+        switch (channel) {
+          case 'antigravity': endpoint = `/api/accounts/${accountId}`; break;
+          case 'kiro': endpoint = `/api/kiro/accounts/${accountId}`; break;
+          case 'qwen': endpoint = `/api/qwen/accounts/${accountId}`; break;
+          case 'codex': endpoint = `/api/codex/accounts/${accountId}`; break;
+        }
+
+        const token = localStorage.getItem('token');
+        await fetch(`/backend${endpoint}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        loadAccounts();
+      } catch (err) {
+        alert('删除失败: ' + err.message);
+      }
+    }
+
+    // Modal
+    function openModal(modalId) {
+      document.getElementById(modalId).classList.add('active');
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.remove('active');
+    }
+
+    async function submitAddAccount(e) {
+      e.preventDefault();
+      // TODO: Implement add account
+      alert('添加账号功能开发中');
+      closeModal('addAccountModal');
     }
 
     // Start
