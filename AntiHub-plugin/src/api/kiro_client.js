@@ -169,7 +169,52 @@ class KiroClient {
     const account = accountOverride || await this.getAvailableAccount(user_id, [], model);
     const requestId = crypto.randomUUID().substring(0, 8);
 
-    logger.info(`[${requestId}] 开始Kiro请求(raw): model=${model}, user_id=${user_id}, account_id=${account.account_id}`);
+    // 详细日志：统计请求内容的关键信息
+    const cs = cwRequest?.conversationState;
+    const historyLen = Array.isArray(cs?.history) ? cs.history.length : 0;
+    const toolsLen = Array.isArray(cs?.currentMessage?.userInputMessage?.userInputMessageContext?.tools)
+      ? cs.currentMessage.userInputMessage.userInputMessageContext.tools.length : 0;
+    const toolResultsLen = Array.isArray(cs?.currentMessage?.userInputMessage?.userInputMessageContext?.toolResults)
+      ? cs.currentMessage.userInputMessage.userInputMessageContext.toolResults.length : 0;
+    const contentLen = typeof cs?.currentMessage?.userInputMessage?.content === 'string'
+      ? cs.currentMessage.userInputMessage.content.length : 0;
+
+    // 统计 history 中的 tool_use 和 tool_result 数量
+    let historyToolUseCount = 0;
+    let historyToolResultCount = 0;
+    const historyToolUseIds = [];
+    const historyToolResultIds = [];
+    if (Array.isArray(cs?.history)) {
+      for (const entry of cs.history) {
+        const assistant = entry?.assistantResponseMessage;
+        if (assistant?.toolUses && Array.isArray(assistant.toolUses)) {
+          historyToolUseCount += assistant.toolUses.length;
+          for (const tu of assistant.toolUses) {
+            if (tu?.toolUseId) historyToolUseIds.push(tu.toolUseId);
+          }
+        }
+        const user = entry?.userInputMessage;
+        const ctx = user?.userInputMessageContext;
+        if (ctx?.toolResults && Array.isArray(ctx.toolResults)) {
+          historyToolResultCount += ctx.toolResults.length;
+          for (const tr of ctx.toolResults) {
+            if (tr?.toolUseId) historyToolResultIds.push(tr.toolUseId);
+          }
+        }
+      }
+    }
+
+    // 检查是否有孤立的 tool_use（没有对应的 tool_result）
+    const orphanToolUseIds = historyToolUseIds.filter(id => !historyToolResultIds.includes(id));
+
+    logger.info(`[${requestId}] 开始Kiro请求(raw): model=${model}, user_id=${user_id}, account_id=${account.account_id}, ` +
+      `history=${historyLen}, tools=${toolsLen}, toolResults=${toolResultsLen}, content=${contentLen}, ` +
+      `historyToolUse=${historyToolUseCount}, historyToolResult=${historyToolResultCount}, orphanToolUse=${orphanToolUseIds.length}`);
+
+    // 如果有孤立的 tool_use，记录详细信息
+    if (orphanToolUseIds.length > 0) {
+      logger.warn(`[${requestId}] 检测到孤立的 tool_use（无对应 tool_result）: ${orphanToolUseIds.join(', ')}`);
+    }
 
     if (!cwRequest || typeof cwRequest !== 'object' || !cwRequest.conversationState) {
       throw new Error('cwRequest.conversationState 缺失，无法调用 Kiro');

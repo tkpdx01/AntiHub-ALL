@@ -455,11 +455,14 @@ class KiroAnthropicConverter:
         对 history 中的 userInputMessageContext.toolResults 做严格配对过滤：
         - 仅保留能匹配到「此前出现过且尚未配对」的 assistant.toolUses 的 tool_result
         - 被过滤掉的 tool_result 内容降级拼到 userInputMessage.content，避免丢信息 & 避免空消息触发上游 400
+        - 对于孤立的 tool_use（没有对应的 tool_result），生成假的 tool_result 以满足 Kiro 上游的配对要求
         """
         unpaired_tool_use_ids: set[str] = set()
         all_tool_use_ids: set[str] = set()
+        # 记录每个 tool_use 出现的位置（entry index），用于后续插入假的 tool_result
+        tool_use_entry_index: Dict[str, int] = {}
 
-        for entry in history:
+        for idx, entry in enumerate(history):
             assistant = entry.get("assistantResponseMessage")
             if isinstance(assistant, dict):
                 tool_uses = assistant.get("toolUses")
@@ -471,6 +474,7 @@ class KiroAnthropicConverter:
                         if isinstance(tid, str) and tid:
                             all_tool_use_ids.add(tid)
                             unpaired_tool_use_ids.add(tid)
+                            tool_use_entry_index[tid] = idx
 
             user = entry.get("userInputMessage")
             if not isinstance(user, dict):
@@ -521,6 +525,64 @@ class KiroAnthropicConverter:
                         user["content"] = f"{original}\n{extra}"
                     else:
                         user["content"] = extra
+
+        # 处理孤立的 tool_use：为其生成假的 tool_result
+        # Kiro 上游要求每个 tool_use 都必须有对应的 tool_result，否则会返回 400
+        if unpaired_tool_use_ids:
+            logger.warning(
+                "检测到 %d 个孤立的 tool_use（无对应 tool_result），将生成假的 tool_result: %s",
+                len(unpaired_tool_use_ids),
+                ", ".join(sorted(unpaired_tool_use_ids)),
+            )
+            # 按 tool_use 出现的位置分组，在其后面的 userInputMessage 中插入假的 tool_result
+            # 如果没有后续的 userInputMessage，则在 history 末尾添加一个新的 userInputMessage
+            for tid in sorted(unpaired_tool_use_ids):
+                fake_result = {
+                    "toolUseId": tid,
+                    "content": [{"text": "[Tool execution was interrupted or result was lost]"}],
+                    "status": "error",
+                    "isError": True,
+                }
+                # 找到 tool_use 之后的第一个 userInputMessage
+                tool_use_idx = tool_use_entry_index.get(tid, -1)
+                inserted = False
+                for i in range(tool_use_idx + 1, len(history)):
+                    user = history[i].get("userInputMessage")
+                    if isinstance(user, dict):
+                        ctx = user.get("userInputMessageContext")
+                        if not isinstance(ctx, dict):
+                            ctx = {}
+                            user["userInputMessageContext"] = ctx
+                        if "toolResults" not in ctx or not isinstance(ctx["toolResults"], list):
+                            ctx["toolResults"] = []
+                        ctx["toolResults"].append(fake_result)
+                        inserted = True
+                        logger.info("为孤立的 tool_use 插入假的 tool_result: toolUseId=%s, entry_index=%d", tid, i)
+                        break
+                # 如果没有找到后续的 userInputMessage，在 history 末尾添加一个新的
+                if not inserted:
+                    # 获取 modelId（从最后一个 userInputMessage 中获取）
+                    model_id = "claude-sonnet-4.5"
+                    for entry in reversed(history):
+                        user = entry.get("userInputMessage")
+                        if isinstance(user, dict):
+                            mid = user.get("modelId")
+                            if isinstance(mid, str) and mid:
+                                model_id = mid
+                                break
+                    new_entry = {
+                        "userInputMessage": {
+                            "userInputMessageContext": {"toolResults": [fake_result]},
+                            "content": "",
+                            "modelId": model_id,
+                            "images": [],
+                            "origin": "AI_EDITOR",
+                        }
+                    }
+                    history.append(new_entry)
+                    # 还需要添加一个 assistant 响应
+                    history.append({"assistantResponseMessage": {"content": "I understand the tool execution was interrupted."}})
+                    logger.info("为孤立的 tool_use 在 history 末尾添加假的 tool_result: toolUseId=%s", tid)
 
     @classmethod
     def _append_orphan_tool_result_text(
