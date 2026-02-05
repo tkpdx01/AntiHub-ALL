@@ -365,7 +365,7 @@
     async function fetchAPI(path) {
       const token = localStorage.getItem('token');
       if (!token) {
-        window.location.href = '/auth/login';
+        window.location.href = '/login.html';
         throw new Error('No token');
       }
 
@@ -375,7 +375,7 @@
 
       if (res.status === 401) {
         localStorage.removeItem('token');
-        window.location.href = '/auth/login';
+        window.location.href = '/login.html';
         throw new Error('Unauthorized');
       }
 
@@ -389,7 +389,7 @@
     // Logout
     function logout() {
       localStorage.removeItem('token');
-      window.location.href = '/auth/login';
+      window.location.href = '/login.html';
     }
 
     // Show error
@@ -627,7 +627,7 @@
     function init() {
       const token = localStorage.getItem('token');
       if (!token) {
-        window.location.href = '/auth/login';
+        window.location.href = '/login.html';
         return;
       }
       loadDashboard();
