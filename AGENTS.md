@@ -59,3 +59,4 @@ There is no single repo-wide test runner today. For changes, run a Docker smoke 
 
 Commit messages generally follow `<type>: <summary>` (common types: `feat:`, `fix:`; `!` indicates breaking changes). PRs should include: what changed, how to verify (exact commands), and screenshots for UI changes. If you add environment variables, update the relevant `*.example` files and document defaults.
 
+Avoid unnecessary secondary levels and descriptions. Let the layout do the explaining.
